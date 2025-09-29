@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Chair Viewer - WebGL</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        padding: 1rem;
+        background-color: #f0f0f0;
+      }
+
+      .main-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .controls-container {
+        width: 25rem;
+        background: #fff;
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      #canvas-container canvas {
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        cursor: grab;
+      }
+
+      #canvas-container canvas:active {
+        cursor: grabbing;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+
+      .button-group button,
+      .button-group select {
+        font-size: 1rem;
+        padding: 0.5rem 1rem;
+        border: 1px solid #6c757d;
+        border-radius: 5px;
+        cursor: pointer;
+        background-color: #fff;
+        color: #6c757d;
+        transition: background-color 0.2s, color 0.2s;
+        flex-grow: 1;
+        /* Make buttons in a group fill the space */
+      }
+
+      .button-group button:hover,
+      .button-group select:hover {
+        background-color: #e9ecef;
+      }
+
+      .button-group .active {
+        background-color: #007bff;
+        color: white;
+        border-color: #007bff;
+      }
+
+      h2 {
+        margin-top: 0;
+      }
+
+      label {
+        display: block;
+        margin-top: 1rem;
+        font-weight: 600;
+      }
+
+      input[type="range"] {
+        width: 100%;
+      }
+
+      .instructions {
+        font-size: 0.9em;
+        color: #555;
+        background-color: #f9f9f9;
+        padding: 10px;
+        border-radius: 5px;
+        margin-top: 1rem;
+        border: 1px solid #eee;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="main-container">
+      <h1 style="text-align: center; margin-bottom: 1rem; color: #333">
+        Chair Viewer
+      </h1>
+      <div id="canvas-container">
+        <canvas id="gl-canvas" width="512" height="512"></canvas>
+      </div>
+    </div>
+
+    <div class="controls-container">
+      <div>
+        <div id="vbo-ibo-controls">
+          <h2>Rendering Mode</h2>
+          <div class="flex gap-4">
+            <label
+              ><input type="radio" name="vbo-ibo" value="vbo" checked />
+              VBO</label
+            >
+            <label><input type="radio" name="vbo-ibo" value="ibo" /> IBO</label>
+          </div>
+          <p>Current mode: <b id="current-mode">VBO</b></p>
+        </div>
+        <div id="viewer-controls">
+          <div class="instructions">
+            <b>Chair Viewer Controls:</b>
+            <ul>
+              <li><b>Rotate Camera:</b> Drag mouse.</li>
+              <li><b>Zoom:</b> Scroll mouse.</li>
+            </ul>
+          </div>
+
+          <h2>Projection & Camera</h2>
+          <div class="flex gap-4" style="margin-bottom: 1rem">
+            <label
+              ><input
+                type="radio"
+                name="projection"
+                value="perspective"
+                checked
+              />
+              Perspective</label
+            >
+            <label
+              ><input type="radio" name="projection" value="orthographic" />
+              Orthographic</label
+            >
+          </div>
+          <p>Current projection: <b id="current-projection">Perspective</b></p>
+
+          <label>Camera Position Presets</label>
+          <div class="button-group" style="margin-bottom: 1rem">
+            <button id="btn-camera-front">Front</button>
+            <button id="btn-camera-side">Side</button>
+            <button id="btn-camera-top">Top</button>
+            <button id="btn-camera-isometric">Isometric</button>
+          </div>
+
+          <h2>Lighting</h2>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="ambientColor">Ambient Color</label>
+              <input id="ambientColor" type="color" value="#333333" />
+            </div>
+            <div>
+              <label for="diffuseColor">Diffuse Color</label>
+              <input id="diffuseColor" type="color" value="#ffffff" />
+            </div>
+            <div>
+              <label for="specularColor">Specular Color</label>
+              <input id="specularColor" type="color" value="#ffffff" />
+            </div>
+            <div>
+              <label for="shininess">Shininess</label>
+              <input id="shininess" type="range" min="1" max="128" value="50" />
+            </div>
+          </div>
+          <label style="margin-top: 0.75rem">Light Position</label>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <small>X</small>
+              <input
+                id="lightX"
+                type="range"
+                min="-10"
+                max="10"
+                value="2"
+                step="0.1"
+              />
+            </div>
+            <div>
+              <small>Y</small>
+              <input
+                id="lightY"
+                type="range"
+                min="-10"
+                max="10"
+                value="3"
+                step="0.1"
+              />
+            </div>
+            <div>
+              <small>Z</small>
+              <input
+                id="lightZ"
+                type="range"
+                min="-10"
+                max="10"
+                value="4"
+                step="0.1"
+              />
+            </div>
+          </div>
+
+          <h2>Chair Transform</h2>
+          <div class="flex gap-3">
+            <div class="">
+              <label for="viewer-scale">Scale</label>
+              <input
+                type="range"
+                id="viewer-scale"
+                min="0.2"
+                max="1.5"
+                value="0.7"
+                step="0.01"
+              />
+              <label for="viewer-translateX">Translate X</label>
+              <input
+                type="range"
+                id="viewer-translateX"
+                min="-1"
+                max="1"
+                value="0"
+                step="0.01"
+              />
+              <label for="viewer-translateY">Translate Y</label>
+              <input
+                type="range"
+                id="viewer-translateY"
+                min="-1"
+                max="1"
+                value="0"
+                step="0.01"
+              />
+              <label>Rotate 90 Degrees</label>
+              <div class="button-group">
+                <button id="btn-rotate-x">Rotate X</button>
+                <button id="btn-rotate-y">Rotate Y</button>
+                <button id="btn-rotate-z">Rotate Z</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="w-full flex flex-col items-center mt-4">
+        <img
+          src="assets/chair.png"
+          alt="Chair Model"
+          class="rounded max-w-[15rem]"
+          id="image"
+        />
+      </div>
+    </div>
+
+    <script id="viewer-vertex-shader" type="x-shader/x-vertex">
+        #version 300 es
+      in vec4 aPosition;
+      in vec3 aNormal;
+      out vec3 N, L, E;
+
+      uniform mat4 modelViewMatrix;
+      uniform mat4 projectionMatrix;
+      uniform mat3 uNormalMatrix;
+      uniform vec4 uLightPosition;
+
+      void main() {
+        vec3 pos = (modelViewMatrix * aPosition).xyz;
+
+        if (uLightPosition.w == 0.0) {
+          L = normalize(uLightPosition.xyz);
+        } else {
+          L = normalize(uLightPosition.xyz - pos);
+        }
+
+        E = -normalize(pos);
+        N = normalize(uNormalMatrix * aNormal);
+
+        gl_Position = projectionMatrix * modelViewMatrix * aPosition;
+      }
+    </script>
+    <script id="viewer-fragment-shader" type="x-shader/x-fragment">
+        #version 300 es
+        precision mediump float;
+      in vec3 N, L, E;
+      uniform vec4 uAmbientProduct;
+      uniform vec4 uDiffuseProduct;
+      uniform vec4 uSpecularProduct;
+      uniform float uShininess;
+      out vec4 fColor;
+      void main() {
+        vec3 H = normalize(L + E);
+        vec4 ambient = uAmbientProduct;
+        float Kd = max(dot(L, N), 0.0);
+        vec4 diffuse = Kd * uDiffuseProduct;
+        float Ks = pow(max(dot(N, H), 0.0), uShininess);
+        vec4 specular = Ks * uSpecularProduct;
+        if (dot(L, N) < 0.0) {
+          specular = vec4(0.0, 0.0, 0.0, 1.0);
+        }
+        fColor = ambient + diffuse + specular;
+        fColor.a = 1.0;
+      }
+    </script>
+
+    <script src="MVnew.js"></script>
+    <script src="initShaders.js"></script>
+    <script src="utils/objects.js"></script>
+    <script type="module" src="main.js"></script>
+
+    <script>
+      const viewerControls = document.getElementById("viewer-controls");
+      const canvasContainer = document.getElementById("canvas-container");
+      const vboIboRadios = document.querySelectorAll('input[name="vbo-ibo"]');
+      const projectionRadios = document.querySelectorAll(
+        'input[name="projection"]'
+      );
+      const currentModeEl = document.getElementById("current-mode");
+      const currentProjectionEl = document.getElementById("current-projection");
+
+      let currentAnimationId = -1;
+      let currentApp = null;
+
+      function getVboIboMode() {
+        return (
+          document.querySelector('input[name="vbo-ibo"]:checked').value ===
+          "ibo"
+        );
+      }
+
+      function getProjectionMode() {
+        return document.querySelector('input[name="projection"]:checked').value;
+      }
+
+      function reloadApp() {
+        if (window.cancelAnimationFrame && currentAnimationId !== -1) {
+          window.cancelAnimationFrame(currentAnimationId);
+        }
+        canvasContainer.innerHTML =
+          '<canvas id="gl-canvas" width="512" height="512"></canvas>';
+
+        const useIBO = getVboIboMode();
+        const projectionType = getProjectionMode();
+        currentModeEl.textContent = useIBO ? "IBO" : "VBO";
+        currentProjectionEl.textContent =
+          projectionType === "perspective" ? "Perspective" : "Orthographic";
+
+        viewerControls.style.display = "block";
+        currentApp = runApp_ObjectViewer("chair", useIBO, projectionType);
+        currentAnimationId = currentApp.animationId;
+      }
+
+      function setCameraPosition(preset) {
+        if (currentApp && currentApp.setCameraPosition) {
+          currentApp.setCameraPosition(preset);
+        }
+      }
+
+      vboIboRadios.forEach((radio) => {
+        radio.addEventListener("change", reloadApp);
+      });
+
+      projectionRadios.forEach((radio) => {
+        radio.addEventListener("change", reloadApp);
+      });
+
+      document.getElementById("btn-camera-front").onclick = () =>
+        setCameraPosition("front");
+      document.getElementById("btn-camera-side").onclick = () =>
+        setCameraPosition("side");
+      document.getElementById("btn-camera-top").onclick = () =>
+        setCameraPosition("top");
+      document.getElementById("btn-camera-isometric").onclick = () =>
+        setCameraPosition("isometric");
+
+      window.onload = () => {
+        reloadApp();
+      };
+    </script>
+  </body>
+</html>
