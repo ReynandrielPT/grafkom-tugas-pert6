@@ -4,7 +4,8 @@
 function runApp_ObjectViewer(
   modelType = "chair",
   useIBO = false,
-  projectionType = "perspective"
+  projectionType = "perspective",
+  lightingMode = "fragment"
 ) {
   var canvas, gl, program, numPositions, numIndices;
 
@@ -108,7 +109,16 @@ function runApp_ObjectViewer(
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(0.9, 0.9, 0.95, 1.0);
     gl.enable(gl.DEPTH_TEST);
-    program = initShaders(gl, "viewer-vertex-shader", "viewer-fragment-shader");
+    // Choose shader pair based on lighting mode
+    const vsId =
+      lightingMode === "vertex"
+        ? "viewer-vertex-shader-vertexLighting"
+        : "viewer-vertex-shader";
+    const fsId =
+      lightingMode === "vertex"
+        ? "viewer-fragment-shader-vertexLighting"
+        : "viewer-fragment-shader";
+    program = initShaders(gl, vsId, fsId);
     gl.useProgram(program);
 
     // VBO setup

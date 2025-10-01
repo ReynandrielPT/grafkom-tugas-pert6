@@ -154,6 +154,11 @@
           </div>
 
           <h2>Lighting</h2>
+              <div class="flex gap-4" style="margin-bottom: 0.5rem">
+                <label><input type="radio" name="lighting-mode" value="fragment" checked /> Fragment</label>
+                <label><input type="radio" name="lighting-mode" value="vertex" /> Vertex</label>
+              </div>
+              <p>Current lighting: <b id="current-lighting">Fragment</b></p>
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label for="ambientColor">Ambient Color</label>
@@ -309,6 +314,49 @@
       }
     </script>
 
+    <!-- Vertex-lighting shader pair (computes lighting in vertex shader) -->
+    <script id="viewer-vertex-shader-vertexLighting" type="x-shader/x-vertex">
+        #version 300 es
+        in vec4 aPosition;
+        in vec3 aNormal;
+        uniform mat4 modelViewMatrix;
+        uniform mat4 projectionMatrix;
+        uniform mat3 uNormalMatrix;
+        uniform vec4 uLightPosition;
+        uniform vec4 uAmbientProduct;
+        uniform vec4 uDiffuseProduct;
+        uniform vec4 uSpecularProduct;
+        uniform float uShininess;
+        out vec4 vColor;
+        void main() {
+          vec3 pos = (modelViewMatrix * aPosition).xyz;
+          vec3 N = normalize(uNormalMatrix * aNormal);
+          vec3 L = (uLightPosition.w == 0.0) ? normalize(uLightPosition.xyz) : normalize(uLightPosition.xyz - pos);
+          vec3 E = -normalize(pos);
+          vec3 H = normalize(L + E);
+          vec4 ambient = uAmbientProduct;
+          float Kd = max(dot(L, N), 0.0);
+          vec4 diffuse = Kd * uDiffuseProduct;
+          float Ks = pow(max(dot(N, H), 0.0), uShininess);
+          vec4 specular = Ks * uSpecularProduct;
+          if (dot(L, N) < 0.0) {
+            specular = vec4(0.0, 0.0, 0.0, 1.0);
+          }
+          vColor = ambient + diffuse + specular;
+          vColor.a = 1.0;
+          gl_Position = projectionMatrix * modelViewMatrix * aPosition;
+        }
+    </script>
+    <script id="viewer-fragment-shader-vertexLighting" type="x-shader/x-fragment">
+        #version 300 es
+        precision mediump float;
+        in vec4 vColor;
+        out vec4 fColor;
+        void main() {
+          fColor = vColor;
+        }
+    </script>
+
     <script src="MVnew.js"></script>
     <script src="initShaders.js"></script>
     <script src="utils/objects.js"></script>
@@ -321,8 +369,10 @@
       const projectionRadios = document.querySelectorAll(
         'input[name="projection"]'
       );
+      const lightingRadios = document.querySelectorAll('input[name="lighting-mode"]');
       const currentModeEl = document.getElementById("current-mode");
       const currentProjectionEl = document.getElementById("current-projection");
+      const currentLightingEl = document.getElementById("current-lighting");
 
       let currentAnimationId = -1;
       let currentApp = null;
@@ -338,6 +388,10 @@
         return document.querySelector('input[name="projection"]:checked').value;
       }
 
+      function getLightingMode() {
+        return document.querySelector('input[name="lighting-mode"]:checked').value;
+      }
+
       function reloadApp() {
         if (window.cancelAnimationFrame && currentAnimationId !== -1) {
           window.cancelAnimationFrame(currentAnimationId);
@@ -347,12 +401,14 @@
 
         const useIBO = getVboIboMode();
         const projectionType = getProjectionMode();
+        const lightingMode = getLightingMode();
         currentModeEl.textContent = useIBO ? "IBO" : "VBO";
         currentProjectionEl.textContent =
           projectionType === "perspective" ? "Perspective" : "Orthographic";
+        currentLightingEl.textContent = lightingMode === 'fragment' ? 'Fragment' : 'Vertex';
 
         viewerControls.style.display = "block";
-        currentApp = runApp_ObjectViewer("chair", useIBO, projectionType);
+        currentApp = runApp_ObjectViewer("chair", useIBO, projectionType, lightingMode);
         currentAnimationId = currentApp.animationId;
       }
 
@@ -367,6 +423,10 @@
       });
 
       projectionRadios.forEach((radio) => {
+        radio.addEventListener("change", reloadApp);
+      });
+
+      lightingRadios.forEach((radio) => {
         radio.addEventListener("change", reloadApp);
       });
 
