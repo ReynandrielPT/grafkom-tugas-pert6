@@ -176,8 +176,8 @@ function runApp_ObjectViewer(
     ambientIntensityLoc = gl.getUniformLocation(program, "uAmbientIntensity");
     diffuseIntensityLoc = gl.getUniformLocation(program, "uDiffuseIntensity");
     specularIntensityLoc = gl.getUniformLocation(program, "uSpecularIntensity");
-  lightingEnabledLoc = gl.getUniformLocation(program, "uLightingEnabled");
-  baseColorLoc = gl.getUniformLocation(program, "uBaseColor");
+    lightingEnabledLoc = gl.getUniformLocation(program, "uLightingEnabled");
+    baseColorLoc = gl.getUniformLocation(program, "uBaseColor");
 
     canvas.onmousedown = (e) => {
       isDragging = true;
@@ -383,8 +383,8 @@ function runApp_ObjectViewer(
       gl.uniformMatrix3fv(normalMatrixLoc, false, flatten(nMat));
 
       // Build material based on part color
-  // Apply user tint to the base part color
-  var materialDiffuse = mult(materialTint, objectParts[i].color);
+      // Apply user tint to the base part color
+      var materialDiffuse = mult(materialTint, objectParts[i].color);
       var materialAmbient = scale(0.2, materialDiffuse); // simple choice
       var materialSpecular = vec4(1.0, 1.0, 1.0, 1.0);
 
@@ -406,8 +406,8 @@ function runApp_ObjectViewer(
       var specularProduct = mult(light.specular, materialSpecular);
       gl.uniform4fv(ambientProdLoc, flatten(ambientProduct));
       gl.uniform4fv(diffuseProdLoc, flatten(diffuseProduct));
-    gl.uniform4fv(specularProdLoc, flatten(specularProduct));
-    if (baseColorLoc) gl.uniform4fv(baseColorLoc, flatten(materialDiffuse));
+      gl.uniform4fv(specularProdLoc, flatten(specularProduct));
+      if (baseColorLoc) gl.uniform4fv(baseColorLoc, flatten(materialDiffuse));
 
       // IBO rendering call
       if (useIBO) {
