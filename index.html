@@ -154,11 +154,90 @@
           </div>
 
           <h2>Lighting</h2>
-              <div class="flex gap-4" style="margin-bottom: 0.5rem">
-                <label><input type="radio" name="lighting-mode" value="fragment" checked /> Fragment</label>
-                <label><input type="radio" name="lighting-mode" value="vertex" /> Vertex</label>
-              </div>
-              <p>Current lighting: <b id="current-lighting">Fragment</b></p>
+          <div>
+            <label>Lighting Mode</label>
+            <div class="flex gap-4" style="margin-bottom: 0.5rem">
+              <label>
+                <input
+                  type="radio"
+                  name="lighting-mode"
+                  value="fragment"
+                  checked
+                />
+                Fragment (per-pixel)
+              </label>
+              <label>
+                <input type="radio" name="lighting-mode" value="vertex" />
+                Vertex (per-vertex)
+              </label>
+            </div>
+            <p>Current lighting: <b id="current-lighting">Fragment</b></p>
+          </div>
+          <div class="mt-2">
+            <label for="lightIntensity"
+              >Light Intensity <span id="lightIntensityValue">1.00</span></label
+            >
+            <input
+              id="lightIntensity"
+              type="range"
+              min="0"
+              max="3"
+              value="1"
+              step="0.01"
+            />
+          </div>
+          <div class="mt-2">
+            <label
+              ><input id="lightEnabled" type="checkbox" checked /> Light
+              Enabled</label
+            >
+          </div>
+          <div class="mt-2">
+            <label for="objectColor">Object Color (Tint)</label>
+            <input id="objectColor" type="color" value="#ffffff" />
+          </div>
+          <label style="margin-top: 0.5rem">Component Intensities</label>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <small
+                >Ambient <span id="ambientIntensityValue">1.00</span></small
+              >
+              <input
+                id="ambientIntensity"
+                type="range"
+                min="0"
+                max="3"
+                value="1"
+                step="0.01"
+              />
+            </div>
+            <div>
+              <small
+                >Diffuse <span id="diffuseIntensityValue">1.00</span></small
+              >
+              <input
+                id="diffuseIntensity"
+                type="range"
+                min="0"
+                max="3"
+                value="1"
+                step="0.01"
+              />
+            </div>
+            <div>
+              <small
+                >Specular <span id="specularIntensityValue">1.00</span></small
+              >
+              <input
+                id="specularIntensity"
+                type="range"
+                min="0"
+                max="3"
+                value="1"
+                step="0.01"
+              />
+            </div>
+          </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label for="ambientColor">Ambient Color</label>
@@ -190,6 +269,7 @@
                 step="0.1"
               />
             </div>
+            <!-- Fragment-lit (per-fragment/Phong) shaders -->
             <div>
               <small>Y</small>
               <input
@@ -298,63 +378,85 @@
       uniform vec4 uDiffuseProduct;
       uniform vec4 uSpecularProduct;
       uniform float uShininess;
+      uniform float uLightIntensity;
+      uniform float uAmbientIntensity;
+      uniform float uDiffuseIntensity;
+      uniform float uSpecularIntensity;
+      uniform float uLightingEnabled;
+      uniform vec4 uBaseColor;
       out vec4 fColor;
       void main() {
         vec3 H = normalize(L + E);
-        vec4 ambient = uAmbientProduct;
+        vec4 ambient = uAmbientProduct * (uLightIntensity * uAmbientIntensity);
         float Kd = max(dot(L, N), 0.0);
-        vec4 diffuse = Kd * uDiffuseProduct;
+        vec4 diffuse = Kd * uDiffuseProduct * (uLightIntensity * uDiffuseIntensity);
         float Ks = pow(max(dot(N, H), 0.0), uShininess);
-        vec4 specular = Ks * uSpecularProduct;
+        vec4 specular = Ks * uSpecularProduct * (uLightIntensity * uSpecularIntensity);
         if (dot(L, N) < 0.0) {
           specular = vec4(0.0, 0.0, 0.0, 1.0);
         }
-        fColor = ambient + diffuse + specular;
-        fColor.a = 1.0;
+        vec4 lit = ambient + diffuse + specular;
+        lit.a = 1.0;
+        // If disabled, just show base color
+        fColor = mix(uBaseColor, lit, clamp(uLightingEnabled, 0.0, 1.0));
       }
     </script>
 
-    <!-- Vertex-lighting shader pair (computes lighting in vertex shader) -->
-    <script id="viewer-vertex-shader-vertexLighting" type="x-shader/x-vertex">
-        #version 300 es
-        in vec4 aPosition;
-        in vec3 aNormal;
-        uniform mat4 modelViewMatrix;
-        uniform mat4 projectionMatrix;
-        uniform mat3 uNormalMatrix;
-        uniform vec4 uLightPosition;
-        uniform vec4 uAmbientProduct;
-        uniform vec4 uDiffuseProduct;
-        uniform vec4 uSpecularProduct;
-        uniform float uShininess;
-        out vec4 vColor;
-        void main() {
-          vec3 pos = (modelViewMatrix * aPosition).xyz;
-          vec3 N = normalize(uNormalMatrix * aNormal);
-          vec3 L = (uLightPosition.w == 0.0) ? normalize(uLightPosition.xyz) : normalize(uLightPosition.xyz - pos);
-          vec3 E = -normalize(pos);
-          vec3 H = normalize(L + E);
-          vec4 ambient = uAmbientProduct;
-          float Kd = max(dot(L, N), 0.0);
-          vec4 diffuse = Kd * uDiffuseProduct;
-          float Ks = pow(max(dot(N, H), 0.0), uShininess);
-          vec4 specular = Ks * uSpecularProduct;
-          if (dot(L, N) < 0.0) {
-            specular = vec4(0.0, 0.0, 0.0, 1.0);
-          }
-          vColor = ambient + diffuse + specular;
-          vColor.a = 1.0;
-          gl_Position = projectionMatrix * modelViewMatrix * aPosition;
-        }
+    <!-- Vertex-lit (per-vertex/Gouraud) shaders -->
+    <script id="viewer-vertex-shader-vertex" type="x-shader/x-vertex">
+              #version 300 es
+              in vec4 aPosition;
+              in vec3 aNormal;
+              out vec4 vColor;
+
+              uniform mat4 modelViewMatrix;
+              uniform mat4 projectionMatrix;
+              uniform mat3 uNormalMatrix;
+              uniform vec4 uLightPosition;
+
+              uniform vec4 uAmbientProduct;
+              uniform vec4 uDiffuseProduct;
+              uniform vec4 uSpecularProduct;
+              uniform float uShininess;
+          uniform float uLightIntensity;
+          uniform float uAmbientIntensity;
+          uniform float uDiffuseIntensity;
+          uniform float uSpecularIntensity;
+      uniform float uLightingEnabled;
+      uniform vec4 uBaseColor;
+
+              void main() {
+                vec3 pos = (modelViewMatrix * aPosition).xyz;
+                vec3 L = (uLightPosition.w == 0.0)
+                          ? normalize(uLightPosition.xyz)
+                          : normalize(uLightPosition.xyz - pos);
+                vec3 E = -normalize(pos);
+                vec3 N = normalize(uNormalMatrix * aNormal);
+                vec3 H = normalize(L + E);
+
+                vec4 ambient = uAmbientProduct * (uLightIntensity * uAmbientIntensity);
+                float Kd = max(dot(L, N), 0.0);
+                vec4 diffuse = Kd * uDiffuseProduct * (uLightIntensity * uDiffuseIntensity);
+                float Ks = pow(max(dot(N, H), 0.0), uShininess);
+                vec4 specular = Ks * uSpecularProduct * (uLightIntensity * uSpecularIntensity);
+                if (dot(L, N) < 0.0) {
+                  specular = vec4(0.0, 0.0, 0.0, 1.0);
+                }
+                vec4 lit = ambient + diffuse + specular;
+                lit.a = 1.0;
+                vColor = mix(uBaseColor, lit, clamp(uLightingEnabled, 0.0, 1.0));
+
+                gl_Position = projectionMatrix * modelViewMatrix * aPosition;
+              }
     </script>
-    <script id="viewer-fragment-shader-vertexLighting" type="x-shader/x-fragment">
-        #version 300 es
-        precision mediump float;
-        in vec4 vColor;
-        out vec4 fColor;
-        void main() {
-          fColor = vColor;
-        }
+    <script id="viewer-fragment-shader-vertex" type="x-shader/x-fragment">
+      #version 300 es
+      precision mediump float;
+      in vec4 vColor;
+      out vec4 fColor;
+      void main() {
+        fColor = vColor;
+      }
     </script>
 
     <script src="MVnew.js"></script>
@@ -369,7 +471,9 @@
       const projectionRadios = document.querySelectorAll(
         'input[name="projection"]'
       );
-      const lightingRadios = document.querySelectorAll('input[name="lighting-mode"]');
+      const lightingRadios = document.querySelectorAll(
+        'input[name="lighting-mode"]'
+      );
       const currentModeEl = document.getElementById("current-mode");
       const currentProjectionEl = document.getElementById("current-projection");
       const currentLightingEl = document.getElementById("current-lighting");
@@ -389,7 +493,8 @@
       }
 
       function getLightingMode() {
-        return document.querySelector('input[name="lighting-mode"]:checked').value;
+        return document.querySelector('input[name="lighting-mode"]:checked')
+          .value;
       }
 
       function reloadApp() {
@@ -405,10 +510,16 @@
         currentModeEl.textContent = useIBO ? "IBO" : "VBO";
         currentProjectionEl.textContent =
           projectionType === "perspective" ? "Perspective" : "Orthographic";
-        currentLightingEl.textContent = lightingMode === 'fragment' ? 'Fragment' : 'Vertex';
+        currentLightingEl.textContent =
+          lightingMode === "fragment" ? "Fragment" : "Vertex";
 
         viewerControls.style.display = "block";
-        currentApp = runApp_ObjectViewer("chair", useIBO, projectionType, lightingMode);
+        currentApp = runApp_ObjectViewer(
+          "chair",
+          useIBO,
+          projectionType,
+          lightingMode
+        );
         currentAnimationId = currentApp.animationId;
       }
 

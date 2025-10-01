@@ -5,7 +5,7 @@ function runApp_ObjectViewer(
   modelType = "chair",
   useIBO = false,
   projectionType = "perspective",
-  lightingMode = "fragment"
+  lightingMode = "fragment" // 'fragment' (per-pixel) or 'vertex' (per-vertex)
 ) {
   var canvas, gl, program, numPositions, numIndices;
 
@@ -22,11 +22,18 @@ function runApp_ObjectViewer(
   var modelViewMatrixLoc, projectionMatrixLoc;
   var normalMatrixLoc, lightPosLoc, shininessLoc;
   var ambientProdLoc, diffuseProdLoc, specularProdLoc;
+  var lightIntensityLoc;
+  var ambientIntensityLoc, diffuseIntensityLoc, specularIntensityLoc;
+  var lightingEnabledLoc, baseColorLoc;
   var isDragging = false,
     lastMouseX,
     lastMouseY;
   var currentProjectionType = projectionType;
+  var currentLightingMode = lightingMode;
   let animationId = -1;
+
+  // Object tint (from UI color picker)
+  var materialTint = vec4(1.0, 1.0, 1.0, 1.0);
 
   // Lighting state (controlled by UI)
   var light = {
@@ -35,6 +42,11 @@ function runApp_ObjectViewer(
     specular: vec4(1.0, 1.0, 1.0, 1.0),
     position: vec4(2.0, 3.0, 4.0, 1.0),
     shininess: 50.0,
+    intensity: 1.0,
+    ambientIntensity: 1.0,
+    diffuseIntensity: 1.0,
+    specularIntensity: 1.0,
+    enabled: true,
   };
 
   function initUnitCube() {
@@ -109,16 +121,20 @@ function runApp_ObjectViewer(
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(0.9, 0.9, 0.95, 1.0);
     gl.enable(gl.DEPTH_TEST);
-    // Choose shader pair based on lighting mode
-    const vsId =
-      lightingMode === "vertex"
-        ? "viewer-vertex-shader-vertexLighting"
-        : "viewer-vertex-shader";
-    const fsId =
-      lightingMode === "vertex"
-        ? "viewer-fragment-shader-vertexLighting"
-        : "viewer-fragment-shader";
-    program = initShaders(gl, vsId, fsId);
+    // Choose shader pair by lighting mode
+    if (currentLightingMode === "vertex") {
+      program = initShaders(
+        gl,
+        "viewer-vertex-shader-vertex",
+        "viewer-fragment-shader-vertex"
+      );
+    } else {
+      program = initShaders(
+        gl,
+        "viewer-vertex-shader",
+        "viewer-fragment-shader"
+      );
+    }
     gl.useProgram(program);
 
     // VBO setup
@@ -156,6 +172,12 @@ function runApp_ObjectViewer(
     ambientProdLoc = gl.getUniformLocation(program, "uAmbientProduct");
     diffuseProdLoc = gl.getUniformLocation(program, "uDiffuseProduct");
     specularProdLoc = gl.getUniformLocation(program, "uSpecularProduct");
+    lightIntensityLoc = gl.getUniformLocation(program, "uLightIntensity");
+    ambientIntensityLoc = gl.getUniformLocation(program, "uAmbientIntensity");
+    diffuseIntensityLoc = gl.getUniformLocation(program, "uDiffuseIntensity");
+    specularIntensityLoc = gl.getUniformLocation(program, "uSpecularIntensity");
+  lightingEnabledLoc = gl.getUniformLocation(program, "uLightingEnabled");
+  baseColorLoc = gl.getUniformLocation(program, "uBaseColor");
 
     canvas.onmousedown = (e) => {
       isDragging = true;
@@ -207,6 +229,22 @@ function runApp_ObjectViewer(
     const diffuseInput = document.getElementById("diffuseColor");
     const specularInput = document.getElementById("specularColor");
     const shininessInput = document.getElementById("shininess");
+    const lightIntensityInput = document.getElementById("lightIntensity");
+    const lightIntensityValue = document.getElementById("lightIntensityValue");
+    const ambientIntensityInput = document.getElementById("ambientIntensity");
+    const diffuseIntensityInput = document.getElementById("diffuseIntensity");
+    const specularIntensityInput = document.getElementById("specularIntensity");
+    const ambientIntensityValue = document.getElementById(
+      "ambientIntensityValue"
+    );
+    const diffuseIntensityValue = document.getElementById(
+      "diffuseIntensityValue"
+    );
+    const specularIntensityValue = document.getElementById(
+      "specularIntensityValue"
+    );
+    const lightEnabledInput = document.getElementById("lightEnabled");
+    const objectColorInput = document.getElementById("objectColor");
     const lightX = document.getElementById("lightX");
     const lightY = document.getElementById("lightY");
     const lightZ = document.getElementById("lightZ");
@@ -227,6 +265,58 @@ function runApp_ObjectViewer(
       shininessInput.oninput = (e) => {
         light.shininess = parseFloat(e.target.value);
       };
+    if (lightIntensityInput) {
+      const updateIntensity = (e) => {
+        light.intensity = parseFloat(lightIntensityInput.value);
+        if (lightIntensityValue) {
+          lightIntensityValue.textContent = light.intensity.toFixed(2);
+        }
+      };
+      lightIntensityInput.oninput = updateIntensity;
+      updateIntensity();
+    }
+    if (ambientIntensityInput) {
+      const updateAmb = () => {
+        light.ambientIntensity = parseFloat(ambientIntensityInput.value);
+        if (ambientIntensityValue)
+          ambientIntensityValue.textContent = light.ambientIntensity.toFixed(2);
+      };
+      ambientIntensityInput.oninput = updateAmb;
+      updateAmb();
+    }
+    if (diffuseIntensityInput) {
+      const updateDif = () => {
+        light.diffuseIntensity = parseFloat(diffuseIntensityInput.value);
+        if (diffuseIntensityValue)
+          diffuseIntensityValue.textContent = light.diffuseIntensity.toFixed(2);
+      };
+      diffuseIntensityInput.oninput = updateDif;
+      updateDif();
+    }
+    if (specularIntensityInput) {
+      const updateSpec = () => {
+        light.specularIntensity = parseFloat(specularIntensityInput.value);
+        if (specularIntensityValue)
+          specularIntensityValue.textContent =
+            light.specularIntensity.toFixed(2);
+      };
+      specularIntensityInput.oninput = updateSpec;
+      updateSpec();
+    }
+    if (objectColorInput) {
+      const updateTint = () => {
+        materialTint = hexToVec4(objectColorInput.value);
+      };
+      objectColorInput.oninput = updateTint;
+      updateTint();
+    }
+    if (lightEnabledInput) {
+      const updateEnabled = () => {
+        light.enabled = !!lightEnabledInput.checked;
+      };
+      lightEnabledInput.onchange = updateEnabled;
+      updateEnabled();
+    }
     function updateLightPos() {
       light.position = vec4(
         parseFloat(lightX.value),
@@ -293,20 +383,31 @@ function runApp_ObjectViewer(
       gl.uniformMatrix3fv(normalMatrixLoc, false, flatten(nMat));
 
       // Build material based on part color
-      var materialDiffuse = objectParts[i].color;
+  // Apply user tint to the base part color
+  var materialDiffuse = mult(materialTint, objectParts[i].color);
       var materialAmbient = scale(0.2, materialDiffuse); // simple choice
       var materialSpecular = vec4(1.0, 1.0, 1.0, 1.0);
 
       // Set light uniforms
       gl.uniform4fv(lightPosLoc, light.position);
       gl.uniform1f(shininessLoc, light.shininess);
+      if (lightIntensityLoc) gl.uniform1f(lightIntensityLoc, light.intensity);
+      if (ambientIntensityLoc)
+        gl.uniform1f(ambientIntensityLoc, light.ambientIntensity);
+      if (diffuseIntensityLoc)
+        gl.uniform1f(diffuseIntensityLoc, light.diffuseIntensity);
+      if (specularIntensityLoc)
+        gl.uniform1f(specularIntensityLoc, light.specularIntensity);
+      if (lightingEnabledLoc)
+        gl.uniform1f(lightingEnabledLoc, light.enabled ? 1.0 : 0.0);
 
       var ambientProduct = mult(light.ambient, materialAmbient);
       var diffuseProduct = mult(light.diffuse, materialDiffuse);
       var specularProduct = mult(light.specular, materialSpecular);
       gl.uniform4fv(ambientProdLoc, flatten(ambientProduct));
       gl.uniform4fv(diffuseProdLoc, flatten(diffuseProduct));
-      gl.uniform4fv(specularProdLoc, flatten(specularProduct));
+    gl.uniform4fv(specularProdLoc, flatten(specularProduct));
+    if (baseColorLoc) gl.uniform4fv(baseColorLoc, flatten(materialDiffuse));
 
       // IBO rendering call
       if (useIBO) {
