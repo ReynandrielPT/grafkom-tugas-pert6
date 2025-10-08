@@ -582,18 +582,8 @@
         }
         vec4 lit = ambient + diffuse + specular;
         lit.a = 1.0;
-        // Base color result (lighting mix)
-        vec4 base = mix(uBaseColor, lit, clamp(uLightingEnabled, 0.0, 1.0));
-        // Spherical mapping based on object-space position (Contoh 2 style)
-        float pi = acos(0.0);
-        float x = clamp(vObjPos.x, -0.9999, 0.9999);
-        float y = clamp(vObjPos.y, -0.9999, 0.9999);
-        float denom = max(1e-6, sqrt(1.0 - x * x));
-        float s = 0.5 * acos(x) / pi;
-        float t = 0.5 * asin(y / denom) / pi;
-        vec2 uv = vec2(s, t);
-        vec4 texColor = texture(uTextureMap, uv);
-        fColor = mix(base, base * texColor, clamp(uTextureEnabled, 0.0, 1.0));
+        // If disabled, just show base color
+        fColor = (uBaseColor + lit) / 2.0;
       }
     </script>
 
