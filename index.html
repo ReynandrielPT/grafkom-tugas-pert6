@@ -3,14 +3,45 @@
   <head>
     <title>Chair Viewer - WebGL</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
+      :root {
+        --bg-start: #f7f7fb;
+        --bg-end: #eef1f7;
+        --panel-bg: #ffffff;
+        --panel-border: #e8eaf1;
+        --text: #1f2937; /* gray-800 */
+        --muted: #6b7280; /* gray-500 */
+        --accent: #7c3aed; /* violet-600 */
+        --accent-hover: #6d28d9; /* violet-700 */
+        --accent-soft: #ede9fe; /* violet-50 */
+        --shadow: 0 10px 25px rgba(16, 24, 40, 0.08),
+          0 2px 6px rgba(16, 24, 40, 0.06);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+        color: var(--text);
         display: flex;
         justify-content: center;
         gap: 2rem;
-        padding: 1rem;
-        background-color: #f0f0f0;
+        padding: 1.25rem;
+        background: radial-gradient(
+          1200px 600px at 20% -10%,
+          #ffffff 0%,
+          var(--bg-start) 40%,
+          var(--bg-end) 100%
+        );
       }
 
       .main-container {
@@ -20,18 +51,45 @@
         gap: 1rem;
       }
 
+      h1 {
+        margin: 0.25rem 0 0.5rem 0;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        background: linear-gradient(
+          90deg,
+          #111827 0%,
+          #4c1d95 60%,
+          #7c3aed 100%
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      h2 {
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
+        font-weight: 700;
+        font-size: 1.05rem;
+        color: #111827;
+      }
+
       .controls-container {
         width: 25rem;
-        background: #fff;
-        padding: 1rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        background: var(--panel-bg);
+        padding: 1rem 1.1rem;
+        border-radius: 14px;
+        border: 1px solid var(--panel-border);
+        box-shadow: var(--shadow);
       }
 
       #canvas-container canvas {
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        border-radius: 14px;
+        border: 1px solid var(--panel-border);
+        box-shadow: 0 20px 35px rgba(16, 24, 40, 0.12),
+          0 6px 10px rgba(16, 24, 40, 0.08);
         cursor: grab;
+        background: #ffffff;
       }
 
       #canvas-container canvas:active {
@@ -45,52 +103,117 @@
       }
 
       .button-group button,
-      .button-group select {
-        font-size: 1rem;
-        padding: 0.5rem 1rem;
-        border: 1px solid #6c757d;
-        border-radius: 5px;
+      .button-group select,
+      select,
+      input[type="color"] {
+        font-size: 0.95rem;
+        padding: 0.5rem 0.9rem;
+        border: 1px solid var(--panel-border);
+        border-radius: 10px;
         cursor: pointer;
-        background-color: #fff;
-        color: #6c757d;
-        transition: background-color 0.2s, color 0.2s;
-        flex-grow: 1;
-        /* Make buttons in a group fill the space */
+        background-color: #ffffff;
+        color: var(--text);
+        transition: background-color 0.2s ease, color 0.2s ease,
+          border-color 0.2s ease, box-shadow 0.2s ease;
       }
 
       .button-group button:hover,
-      .button-group select:hover {
-        background-color: #e9ecef;
+      .button-group select:hover,
+      select:hover,
+      input[type="color"]:hover {
+        background-color: #fafafa;
+        border-color: #dfe3ec;
       }
 
       .button-group .active {
-        background-color: #007bff;
-        color: white;
-        border-color: #007bff;
-      }
-
-      h2 {
-        margin-top: 0;
+        background-color: var(--accent);
+        color: #ffffff;
+        border-color: var(--accent);
+        box-shadow: 0 4px 14px rgba(124, 58, 237, 0.3);
       }
 
       label {
         display: block;
         margin-top: 1rem;
         font-weight: 600;
+        color: #111827;
       }
 
       input[type="range"] {
         width: 100%;
+        accent-color: var(--accent);
+      }
+
+      /* Pretty range sliders (Chromium/WebKit) */
+      input[type="range"]::-webkit-slider-runnable-track {
+        height: 6px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--accent-soft), #f1f5f9);
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        margin-top: -6px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: 2px solid #ffffff;
+        box-shadow: 0 4px 10px rgba(124, 58, 237, 0.35);
+      }
+      input[type="range"]:active::-webkit-slider-thumb {
+        transform: scale(1.02);
+      }
+
+      /* Radios and checkboxes */
+      input[type="radio"],
+      input[type="checkbox"] {
+        accent-color: var(--accent);
       }
 
       .instructions {
-        font-size: 0.9em;
-        color: #555;
-        background-color: #f9f9f9;
-        padding: 10px;
-        border-radius: 5px;
+        font-size: 0.92em;
+        color: var(--muted);
+        background: #ffffff;
+        padding: 12px;
+        border-radius: 12px;
         margin-top: 1rem;
-        border: 1px solid #eee;
+        border: 1px solid var(--panel-border);
+      }
+
+      /* Texture dropzone enhancements (keep structure/IDs) */
+      #textureDropzone {
+        border-color: rgba(124, 58, 237, 0.35) !important;
+        background: linear-gradient(
+          0deg,
+          rgba(124, 58, 237, 0.04),
+          rgba(124, 58, 237, 0.04)
+        );
+        color: #4b5563;
+        transition: background-color 0.2s ease, box-shadow 0.2s ease,
+          border-color 0.2s ease;
+      }
+      #textureDropzone:hover {
+        background: linear-gradient(
+          0deg,
+          rgba(124, 58, 237, 0.08),
+          rgba(124, 58, 237, 0.08)
+        );
+        box-shadow: 0 6px 16px rgba(124, 58, 237, 0.18);
+      }
+
+      /* File info colors */
+      #textureFileName {
+        color: #374151;
+      }
+      #textureFileInfo {
+        color: #6b7280;
+      }
+      #textureClear {
+        border-color: var(--panel-border);
+      }
+      #textureClear:hover {
+        background: #f8fafc;
       }
     </style>
   </head>
@@ -332,6 +455,63 @@
               </div>
             </div>
           </div>
+          <h2 style="margin-top: 1rem">Texture</h2>
+          <div class="grid gap-2">
+            <div class="flex items-center gap-2">
+              <input id="textureEnabled" type="checkbox" />
+              <label for="textureEnabled">Enable Texture</label>
+            </div>
+            <div>
+              <label for="textureSelect">Texture Source</label>
+              <select id="textureSelect">
+                <option value="none">None</option>
+                <option value="checkerboard">Checkerboard (procedural)</option>
+                <option value="custom">Custom Image (upload)</option>
+              </select>
+            </div>
+            <div id="textureFileRow" class="grid gap-2" style="display: none">
+              <div
+                id="textureDropzone"
+                class="border-2 border-dashed border-gray-400 rounded p-3 text-center text-gray-600 hover:bg-gray-50 cursor-pointer"
+              >
+                <div>
+                  Drop image here or
+                  <span class="text-blue-600 underline">browse</span>
+                </div>
+                <input
+                  id="textureFile"
+                  type="file"
+                  accept="image/*"
+                  style="display: none"
+                />
+              </div>
+              <div class="flex items-center gap-3">
+                <img
+                  id="texturePreview"
+                  alt="Preview"
+                  class="h-12 w-12 object-cover rounded border"
+                  style="display: none"
+                />
+                <div class="flex-1">
+                  <div id="textureFileName" class="text-sm text-gray-700">
+                    No file selected
+                  </div>
+                  <div id="textureFileInfo" class="text-xs text-gray-500"></div>
+                </div>
+                <button
+                  id="textureClear"
+                  type="button"
+                  class="px-2 py-1 border rounded text-gray-600 hover:bg-gray-100"
+                >
+                  Clear
+                </button>
+              </div>
+              <small class="text-gray-500"
+                >Supported: PNG, JPG, GIF. Large images may be downscaled by the
+                browser.</small
+              >
+            </div>
+          </div>
         </div>
       </div>
       <div class="w-full flex flex-col items-center mt-4">
@@ -345,35 +525,38 @@
     </div>
 
     <script id="viewer-vertex-shader" type="x-shader/x-vertex">
-        #version 300 es
-      in vec4 aPosition;
-      in vec3 aNormal;
-      out vec3 N, L, E;
+            #version 300 es
+          in vec4 aPosition;
+          in vec3 aNormal;
+          out vec3 N, L, E;
+          out vec3 vObjPos;
 
-      uniform mat4 modelViewMatrix;
-      uniform mat4 projectionMatrix;
-      uniform mat3 uNormalMatrix;
-      uniform vec4 uLightPosition;
+          uniform mat4 modelViewMatrix;
+          uniform mat4 projectionMatrix;
+          uniform mat3 uNormalMatrix;
+          uniform vec4 uLightPosition;
 
-      void main() {
-        vec3 pos = (modelViewMatrix * aPosition).xyz;
+          void main() {
+            vec3 pos = (modelViewMatrix * aPosition).xyz;
 
-        if (uLightPosition.w == 0.0) {
-          L = normalize(uLightPosition.xyz);
-        } else {
-          L = normalize(uLightPosition.xyz - pos);
-        }
+            if (uLightPosition.w == 0.0) {
+              L = normalize(uLightPosition.xyz);
+            } else {
+              L = normalize(uLightPosition.xyz - pos);
+            }
 
-        E = -normalize(pos);
-        N = normalize(uNormalMatrix * aNormal);
+      E = -normalize(pos);
+      N = normalize(uNormalMatrix * aNormal);
+      vObjPos = aPosition.xyz;
 
-        gl_Position = projectionMatrix * modelViewMatrix * aPosition;
-      }
+            gl_Position = projectionMatrix * modelViewMatrix * aPosition;
+          }
     </script>
     <script id="viewer-fragment-shader" type="x-shader/x-fragment">
         #version 300 es
         precision mediump float;
       in vec3 N, L, E;
+      in vec3 vObjPos;
       uniform vec4 uAmbientProduct;
       uniform vec4 uDiffuseProduct;
       uniform vec4 uSpecularProduct;
@@ -384,6 +567,8 @@
       uniform float uSpecularIntensity;
       uniform float uLightingEnabled;
       uniform vec4 uBaseColor;
+      uniform sampler2D uTextureMap;
+      uniform float uTextureEnabled;
       out vec4 fColor;
       void main() {
         vec3 H = normalize(L + E);
@@ -407,7 +592,8 @@
               #version 300 es
               in vec4 aPosition;
               in vec3 aNormal;
-              out vec4 vColor;
+        out vec4 vColor;
+        out vec3 vObjPos;
 
               uniform mat4 modelViewMatrix;
               uniform mat4 projectionMatrix;
@@ -445,6 +631,7 @@
                 vec4 lit = ambient + diffuse + specular;
                 lit.a = 1.0;
                 vColor = mix(uBaseColor, lit, clamp(uLightingEnabled, 0.0, 1.0));
+                vObjPos = aPosition.xyz;
 
                 gl_Position = projectionMatrix * modelViewMatrix * aPosition;
               }
@@ -453,9 +640,20 @@
       #version 300 es
       precision mediump float;
       in vec4 vColor;
+      in vec3 vObjPos;
+      uniform sampler2D uTextureMap;
+      uniform float uTextureEnabled;
       out vec4 fColor;
       void main() {
-        fColor = vColor;
+        float pi = acos(0.0);
+        float x = clamp(vObjPos.x, -0.9999, 0.9999);
+        float y = clamp(vObjPos.y, -0.9999, 0.9999);
+        float denom = max(1e-6, sqrt(1.0 - x * x));
+        float s = 0.5 * acos(x) / pi;
+        float t = 0.5 * asin(y / denom) / pi;
+        vec2 uv = vec2(s, t);
+        vec4 texColor = texture(uTextureMap, uv);
+        fColor = mix(vColor, vColor * texColor, clamp(uTextureEnabled, 0.0, 1.0));
       }
     </script>
 
