@@ -398,7 +398,7 @@
         vec4 lit = ambient + diffuse + specular;
         lit.a = 1.0;
         // If disabled, just show base color
-        fColor = mix(uBaseColor, lit, clamp(uLightingEnabled, 0.0, 1.0));
+        fColor = (uBaseColor + lit) / 2.0;
       }
     </script>
 
