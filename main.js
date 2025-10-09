@@ -32,13 +32,6 @@ function runApp_ObjectViewer(
   var currentLightingMode = lightingMode;
   let animationId = -1;
 
-  // Texture state
-  var textureEnabled = 0.0;
-  var textureSelect = "none";
-  var textureObject = null;
-  var textureSamplerLoc = null;
-  var textureEnabledLoc = null;
-
   // Object tint (from UI color picker)
   var materialTint = vec4(1.0, 1.0, 1.0, 1.0);
 
@@ -115,84 +108,6 @@ function runApp_ObjectViewer(
     }
   }
 
-  function createCheckerboard(size) {
-    var texSize = size || 128;
-    var image1 = new Array();
-    for (var i = 0; i < texSize; i++) image1[i] = new Array();
-    for (var i = 0; i < texSize; i++)
-      for (var j = 0; j < texSize; j++) image1[i][j] = new Float32Array(4);
-    for (var i = 0; i < texSize; i++)
-      for (var j = 0; j < texSize; j++) {
-        var c = ((i & 0x8) == 0) ^ ((j & 0x8) == 0);
-        image1[i][j] = [c, c, c, 1];
-      }
-    var image2 = new Uint8Array(4 * texSize * texSize);
-    for (var i = 0; i < texSize; i++)
-      for (var j = 0; j < texSize; j++)
-        for (var k = 0; k < 4; k++)
-          image2[4 * texSize * i + 4 * j + k] = 255 * image1[i][j][k];
-    return { data: image2, texSize };
-  }
-
-  function createGLTextureFromImage(img) {
-    const tex = gl.createTexture();
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-    gl.generateMipmap(gl.TEXTURE_2D);
-    gl.texParameteri(
-      gl.TEXTURE_2D,
-      gl.TEXTURE_MIN_FILTER,
-      gl.LINEAR_MIPMAP_LINEAR
-    );
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.bindTexture(gl.TEXTURE_2D, null);
-    return tex;
-  }
-
-  function createGLTextureFromCheckerboard(cb) {
-    const tex = gl.createTexture();
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA,
-      cb.texSize,
-      cb.texSize,
-      0,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      cb.data
-    );
-    gl.generateMipmap(gl.TEXTURE_2D);
-    gl.texParameteri(
-      gl.TEXTURE_2D,
-      gl.TEXTURE_MIN_FILTER,
-      gl.LINEAR_MIPMAP_LINEAR
-    );
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.bindTexture(gl.TEXTURE_2D, null);
-    return tex;
-  }
-
-  function applyTextureSelection() {
-    if (textureSelect === "none") {
-      textureObject = null;
-      textureEnabled = 0.0;
-      return;
-    }
-    if (textureSelect === "checkerboard") {
-      const cb = createCheckerboard(128);
-      textureObject = createGLTextureFromCheckerboard(cb);
-      textureEnabled = 1.0;
-      return;
-    }
-    // else "custom" is handled via file input
-  }
-
   function init() {
     canvas = document.getElementById("gl-canvas");
     gl = canvas.getContext("webgl2");
@@ -264,14 +179,6 @@ function runApp_ObjectViewer(
     lightingEnabledLoc = gl.getUniformLocation(program, "uLightingEnabled");
     baseColorLoc = gl.getUniformLocation(program, "uBaseColor");
 
-    // Texture uniforms
-    textureSamplerLoc = gl.getUniformLocation(program, "uTextureMap");
-    textureEnabledLoc = gl.getUniformLocation(program, "uTextureEnabled");
-    if (textureSamplerLoc) {
-      gl.uniform1i(textureSamplerLoc, 0); // use texture unit 0
-    }
-
-    // Hook UI
     canvas.onmousedown = (e) => {
       isDragging = true;
       lastMouseX = e.clientX;
@@ -341,116 +248,6 @@ function runApp_ObjectViewer(
     const lightX = document.getElementById("lightX");
     const lightY = document.getElementById("lightY");
     const lightZ = document.getElementById("lightZ");
-
-    // Texture UI
-    const textureEnabledInput = document.getElementById("textureEnabled");
-    const textureSelectInput = document.getElementById("textureSelect");
-    const textureFileRow = document.getElementById("textureFileRow");
-    const textureFileInput = document.getElementById("textureFile");
-    const textureDropzone = document.getElementById("textureDropzone");
-    const texturePreview = document.getElementById("texturePreview");
-    const textureFileName = document.getElementById("textureFileName");
-    const textureFileInfo = document.getElementById("textureFileInfo");
-    const textureClear = document.getElementById("textureClear");
-
-    function setPreview(img, name, size) {
-      if (texturePreview) {
-        texturePreview.src = img || "";
-        texturePreview.style.display = img ? "block" : "none";
-      }
-      if (textureFileName)
-        textureFileName.textContent = name || "No file selected";
-      if (textureFileInfo)
-        textureFileInfo.textContent = size ? size + " KB" : "";
-    }
-
-    function handleFile(file) {
-      if (!file || !file.type || !file.type.startsWith("image/")) {
-        alert("Please select an image file.");
-        return;
-      }
-      const sizeKB = Math.round(file.size / 1024);
-      const reader = new FileReader();
-      reader.onload = function (evt) {
-        const dataUrl = evt.target.result;
-        const img = new Image();
-        img.onload = function () {
-          textureObject = createGLTextureFromImage(img);
-          textureEnabled = 1.0;
-          if (textureEnabledInput) textureEnabledInput.checked = true;
-          setPreview(dataUrl, file.name, sizeKB.toString());
-        };
-        img.src = dataUrl;
-      };
-      reader.readAsDataURL(file);
-    }
-
-    if (textureEnabledInput) {
-      textureEnabledInput.onchange = function () {
-        textureEnabled = textureEnabledInput.checked ? 1.0 : 0.0;
-        if (textureEnabled === 1.0 && textureSelect === "none") {
-          textureSelect = "checkerboard";
-          if (textureSelectInput) textureSelectInput.value = "checkerboard";
-          applyTextureSelection();
-        }
-      };
-    }
-    if (textureSelectInput) {
-      textureSelectInput.onchange = function () {
-        textureSelect = textureSelectInput.value;
-        if (textureFileRow)
-          textureFileRow.style.display =
-            textureSelect === "custom" ? "grid" : "none";
-        if (textureSelect !== "custom") {
-          setPreview(null, "No file selected", "");
-        }
-        applyTextureSelection();
-      };
-      // default: none
-      textureSelect = textureSelectInput.value || "none";
-      if (textureFileRow)
-        textureFileRow.style.display =
-          textureSelect === "custom" ? "grid" : "none";
-    }
-    if (textureFileInput) {
-      textureFileInput.onchange = function () {
-        const file = textureFileInput.files && textureFileInput.files[0];
-        handleFile(file);
-      };
-    }
-    if (textureDropzone) {
-      textureDropzone.addEventListener("click", function () {
-        if (textureFileInput) textureFileInput.click();
-      });
-      ["dragenter", "dragover"].forEach((evt) => {
-        textureDropzone.addEventListener(evt, function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          textureDropzone.classList.add("bg-gray-50");
-        });
-      });
-      ["dragleave", "drop"].forEach((evt) => {
-        textureDropzone.addEventListener(evt, function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          textureDropzone.classList.remove("bg-gray-50");
-        });
-      });
-      textureDropzone.addEventListener("drop", function (e) {
-        const dt = e.dataTransfer;
-        const file = dt && dt.files && dt.files[0];
-        if (file) handleFile(file);
-      });
-    }
-    if (textureClear) {
-      textureClear.onclick = function () {
-        textureObject = null;
-        if (textureEnabledInput) textureEnabledInput.checked = false;
-        textureEnabled = 0.0;
-        setPreview(null, "No file selected", "");
-        if (textureFileInput) textureFileInput.value = "";
-      };
-    }
 
     if (ambientInput)
       ambientInput.oninput = (e) => {
@@ -577,16 +374,6 @@ function runApp_ObjectViewer(
     const R = objectRotationMatrix;
     const objectTransform = mult(T, mult(R, S));
 
-    // Bind texture if enabled
-    if (textureEnabledLoc) {
-      gl.uniform1f(textureEnabledLoc, textureEnabled);
-    }
-    if (textureEnabled > 0.0 && textureObject && textureSamplerLoc) {
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, textureObject);
-      gl.uniform1i(textureSamplerLoc, 0);
-    }
-
     for (let i = 0; i < objectParts.length; i++) {
       let M = mult(objectTransform, objectParts[i].transform);
       modelViewMatrix = mult(V, M);
@@ -663,39 +450,10 @@ function runApp_ObjectViewer(
     }
   }
 
-  // Reset helpers for UI toolbar
-  function resetTransform() {
-    scaleValue = 0.7;
-    translation = { x: 0, y: 0 };
-    objectRotationMatrix = mat4();
-  }
-
-  function resetLight() {
-    light.position = vec4(2.0, 3.0, 4.0, 1.0);
-    light.shininess = 50.0;
-    light.intensity = 1.0;
-    light.ambientIntensity = 1.0;
-    light.diffuseIntensity = 1.0;
-    light.specularIntensity = 1.0;
-    light.enabled = true;
-    // Keep colors/tint as-is; user may have changed them intentionally
-  }
-
-  function resetView() {
-    // Reset camera orientation and distance
-    rotation = { x: -25, y: 35 };
-    cameraDistance = 10.0;
-    resetTransform();
-    resetLight();
-  }
-
   init();
   return {
     animationId: animationId,
     setCameraPosition: setCameraPosition,
-    resetTransform: resetTransform,
-    resetLight: resetLight,
-    resetView: resetView,
   };
 }
 
