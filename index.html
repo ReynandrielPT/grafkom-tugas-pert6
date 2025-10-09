@@ -664,6 +664,7 @@
         float t = 0.5 * asin(y / denom) / pi;
         vec2 uv = vec2(s, t);
         vec4 texColor = texture(uTextureMap, uv);
+        <!-- New -->
         fColor = mix(vColor, vColor * texColor, clamp(uTextureEnabled, 0.0, 1.0));
       }
     </script>
