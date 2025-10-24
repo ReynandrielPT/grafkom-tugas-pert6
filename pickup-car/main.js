@@ -25,6 +25,8 @@
   let fanLightColor = vec4(0.13, 0.83, 0.93, 1); // default from UI
   let panelOpen = false; // UI: open/close right glass panel
   let cpuFanOn = false; // UI: CPU fan power
+  let acSwing = false; // UI: AC swing toggle
+  let acOpenDeg = 30; // UI: AC open base angle
 
   // animation state (fan removed; keep controls harmless)
   let playing = false;
@@ -201,6 +203,24 @@
       setCpuFan();
     }
 
+    // AC controls
+    const acSwingCk = document.getElementById("acSwing");
+    if (acSwingCk) {
+      const setSwing = () => (acSwing = !!acSwingCk.checked);
+      acSwingCk.onchange = setSwing;
+      setSwing();
+    }
+    const acOpen = document.getElementById("acOpen");
+    const acOpenVal = document.getElementById("acOpenVal");
+    if (acOpen && acOpenVal) {
+      const setOpen = () => {
+        acOpenDeg = parseFloat(acOpen.value) || 0;
+        acOpenVal.textContent = Math.round(acOpenDeg);
+      };
+      acOpen.oninput = setOpen;
+      setOpen();
+    }
+
     canvas.onmousedown = (e) => {
       isDragging = true;
       lastX = e.clientX;
@@ -313,6 +333,20 @@
           );
         }
       }
+      // Apply AC louver swing/open
+      if (parts[i].tag === "acLouver") {
+        const pivot = parts[i].pivot;
+        if (pivot) {
+          const swing = acSwing ? 15 * Math.sin(t * 2.0) : 0;
+          let angle = acOpenDeg + swing;
+          if (angle < 0) angle = 0;
+          if (angle > 90) angle = 90;
+          const Tp = translate(pivot[0], pivot[1], pivot[2]);
+          const Tm = translate(-pivot[0], -pivot[1], -pivot[2]);
+          partT = mult(Tp, mult(rotateX(angle), mult(Tm, partT)));
+        }
+      }
+
       const M = mult(baseT, partT);
       const MV = mult(V, M);
       gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(MV));

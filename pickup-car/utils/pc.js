@@ -126,6 +126,72 @@
     }
   }
 
+  // Air Conditioner unit with swinging louvers
+  function addAirConditioner(parts, center, size, options) {
+    const s = size || 1.0;
+    const bodyCol = vec4(0.9, 0.92, 0.95, 1);
+    const grillCol = vec4(0.82, 0.85, 0.9, 1);
+    const louverCol = vec4(0.8, 0.82, 0.86, 1);
+    const [cx, cy, cz] = center;
+    const C = translate(cx, cy, cz);
+    // Body
+    const bw = 2.2 * s,
+      bh = 0.8 * s,
+      bd = 0.6 * s;
+    part(parts, mult(C, scale(bw, bh, bd)), bodyCol, "acBody");
+    // Front frame (thin top/bottom borders)
+    part(
+      parts,
+      mult(
+        C,
+        mult(
+          translate(0, bh * 0.5 - 0.03 * s, bd * 0.5 - 0.02 * s),
+          scale(bw * 0.95, 0.06 * s, 0.04 * s)
+        )
+      ),
+      grillCol,
+      "acFrame"
+    );
+    part(
+      parts,
+      mult(
+        C,
+        mult(
+          translate(0, -bh * 0.5 + 0.03 * s, bd * 0.5 - 0.02 * s),
+          scale(bw * 0.95, 0.06 * s, 0.04 * s)
+        )
+      ),
+      grillCol,
+      "acFrame"
+    );
+    // Louvers array
+    const N = 9;
+    const margin = 0.12 * s;
+    const usableW = bw * 0.95 - 2 * margin;
+    const slatW = usableW / N;
+    const slatH = 0.06 * s;
+    const slatD = 0.04 * s;
+    for (let i = 0; i < N; i++) {
+      const x = -bw * 0.475 + margin + (i + 0.5) * slatW;
+      const yCenter = 0; // centered vertically within grill
+      const zFront = bd * 0.5 - 0.02 * s;
+      // Slat centered box at (x, yCenter, zFront)
+      part(
+        parts,
+        mult(
+          C,
+          mult(translate(x, yCenter, zFront), scale(slatW * 0.9, slatH, slatD))
+        ),
+        louverCol,
+        "acLouver"
+      );
+      const last = parts.length - 1;
+      // Pivot around top edge for opening (rotate about X)
+      parts[last].pivot = [cx + x, cy + slatH / 2, cz + zFront];
+      parts[last].orientAxis = "X";
+    }
+  }
+
   function createPcModel(opts) {
     const parts = [];
     const caseCol = vec4(0.12, 0.12, 0.14, 1);
@@ -269,6 +335,9 @@
       includeFrame: false,
       orientYDegrees: 90,
     });
+
+    // Air Conditioner unit placed to the left of the case
+    addAirConditioner(parts, [-3.0, 2.0, 0.0], 1.0, {});
 
     return parts;
   }
