@@ -32,14 +32,16 @@ function runApp_ACViewer(
   let currentProjectionType = projectionType;
   let currentLightingMode = lightingMode;
   let animationId = -1;
+  let lastTime = 0; // For deltaTime calculation
 
   // AC Animation State
   let playing = false;
-  let t = 0;
-  let speed = 2;
+  let t = 0; // This is NOW ONLY for swing animation time
+  let speed = 2; // This is NOW ONLY for swing speed
   let acOpenAngleDeg = 225; // Internal default (maps to 135 display)
   let acRotate = false;
   let acRotateSpeed = 30;
+  let currentRotationAngle = 0; // This is the persistent rotation angle
   const AC_OPEN_MIN = 100;
   const AC_OPEN_MAX = 360;
 
@@ -272,12 +274,16 @@ function runApp_ACViewer(
     document.getElementById("btnPause").onclick = () => (playing = false);
     document.getElementById("btnStop").onclick = () => {
       playing = false;
-      t = 0;
+      t = 0; // Reset swing time ONLY
     };
+    // This is "Swing Speed"
     document.getElementById("speed").oninput = (e) =>
       (speed = parseFloat(e.target.value));
+
+    // This is "Rotate Model"
     document.getElementById("acRotate").onchange = (e) =>
       (acRotate = !!e.target.checked);
+    // This is "Rotate Speed"
     document.getElementById("acRotateSpeed").oninput = (e) =>
       (acRotateSpeed = parseFloat(e.target.value));
 
@@ -535,8 +541,17 @@ function runApp_ACViewer(
     }
   }
 
-  function render() {
+  // Create the scene graph ONCE.
+  const objectTreeRoot = window.createAcModel({});
+
+  function render(now) {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // Delta time calculation
+    now *= 0.001; // convert time to seconds
+    const deltaTime = now - lastTime;
+    lastTime = now;
+
     const aspect = canvas.width / canvas.height;
 
     if (currentProjectionType === "perspective") {
@@ -565,11 +580,12 @@ function runApp_ACViewer(
     );
     const V = lookAt(eye, vec3(0, 0.5, 0), vec3(0, 1, 0));
 
+    // Update swing time 't' independently
     if (playing) {
-      t += 0.016 * speed;
+      t += deltaTime * speed; // 'speed' is swing speed
     }
 
-    // Set light uniforms
+    // Set light uniforms (once per frame)
     gl.uniform4fv(lightPosLoc, light.position);
     gl.uniform1f(shininessLoc, light.shininess);
     gl.uniform1f(lightIntensityLoc, light.intensity);
@@ -578,7 +594,7 @@ function runApp_ACViewer(
     gl.uniform1f(specularIntensityLoc, light.specularIntensity);
     gl.uniform1f(lightingEnabledLoc, light.enabled ? 1.0 : 0.0);
 
-    // Bind texture
+    // Bind texture (once per frame)
     if (textureEnabledLoc) {
       gl.uniform1f(textureEnabledLoc, textureEnabled);
     }
@@ -588,57 +604,95 @@ function runApp_ACViewer(
       gl.uniform1i(textureSamplerLoc, 0);
     }
 
-    const objectParts = window.createAcModel({});
-    const spinAngle = acRotate ? t * acRotateSpeed : 0;
-    const Rspin = rotateY(spinAngle);
+    // **** CHANGED: Update rotation logic ****
+    if (acRotate) {
+      // If checkbox is on, rotate
+      currentRotationAngle += deltaTime * acRotateSpeed;
+    } else {
+      // If checkbox is off, instantly snap back to 0
+      currentRotationAngle = 0;
+    }
+    const Rspin = rotateY(currentRotationAngle);
+    // **** END OF CHANGE ****
 
-    for (let i = 0; i < objectParts.length; i++) {
-      let M = mult(Rspin, objectParts[i].transform);
+    // --- Recursive Scene Graph Traversal ---
+    function drawNode(node, parentMatrix) {
+      let localM = node.localTransform || mat4();
 
-      // AC Louver Animation Logic
-      if (objectParts[i].tag === "acLouver") {
-        const pivot = objectParts[i].pivot;
-        if (pivot) {
-          let uiDeg;
-          if (playing) {
-            const maxDeg = 360; // Closed
-            const minDeg = acOpenAngleDeg; // Open limit from slider
-            const mid = 0.5 * (minDeg + maxDeg);
-            const amp = 0.5 * (maxDeg - minDeg);
-            uiDeg = mid - amp * Math.sin(t * 2.0);
-          } else {
-            uiDeg = 360; // Closed
-          }
-          uiDeg = Math.max(AC_OPEN_MIN, Math.min(AC_OPEN_MAX, uiDeg));
-          const f = (AC_OPEN_MAX - uiDeg) / (AC_OPEN_MAX - AC_OPEN_MIN);
-          const angleX = 180 * f - 90; // -90 (closed) .. +90 (fully open)
-          const Tp = translate(pivot[0], pivot[1], pivot[2]);
-          const Tm = translate(-pivot[0], -pivot[1], -pivot[2]);
-          M = mult(Tp, mult(rotateX(angleX), mult(Tm, M)));
-        }
+      // --- HIERARCHICAL ANIMATION LOGIC ---
+
+      // Apply global spin to the entire scene (tagged 'sceneRoot')
+      if (node.tag === "sceneRoot") {
+        localM = mult(Rspin, localM); // Use the independent Rspin
       }
 
-      modelViewMatrix = mult(V, M);
-      gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
-      const nMat = normalMatrix(modelViewMatrix, true);
-      gl.uniformMatrix3fv(normalMatrixLoc, false, flatten(nMat));
+      // Apply louver swing animation (tagged 'acLouverAssembly')
+      if (node.tag === "acLouverAssembly") {
+        let uiDeg;
+        // The swing angle depends ONLY on 'playing' and 't'
+        if (playing) {
+          const maxDeg = 360; // Closed
+          const minDeg = acOpenAngleDeg; // Open limit from slider
+          const mid = 0.5 * (minDeg + maxDeg);
+          const amp = 0.5 * (maxDeg - minDeg);
+          uiDeg = mid - amp * Math.sin(t * 2.0);
+        } else {
+          uiDeg = 360; // Closed
+        }
+        uiDeg = Math.max(AC_OPEN_MIN, Math.min(AC_OPEN_MAX, uiDeg));
+        const f = (AC_OPEN_MAX - uiDeg) / (AC_OPEN_MAX - AC_OPEN_MIN);
+        const angleX = 180 * f - 90; // -90 (closed) .. +90 (fully open)
 
-      // Combine part color with material tint
-      const materialDiffuse = mult(materialTint, objectParts[i].color);
-      const materialAmbient = scale(0.2, materialDiffuse);
-      const materialSpecular = vec4(1.0, 1.0, 1.0, 1.0); // Simple white specular
+        // Apply rotation *after* the local transform to pivot correctly
+        localM = mult(localM, rotateX(angleX));
+      }
+      // --- END ANIMATION LOGIC ---
 
-      // Set per-object material uniforms
-      const ambientProduct = mult(light.ambient, materialAmbient);
-      const diffuseProduct = mult(light.diffuse, materialDiffuse);
-      const specularProduct = mult(light.specular, materialSpecular);
-      gl.uniform4fv(ambientProdLoc, flatten(ambientProduct));
-      gl.uniform4fv(diffuseProdLoc, flatten(diffuseProduct));
-      gl.uniform4fv(specularProdLoc, flatten(specularProduct));
-      gl.uniform4fv(baseColorLoc, flatten(materialDiffuse));
+      // Calculate the world matrix for this node
+      const currentWorldMatrix = mult(parentMatrix, localM);
 
-      gl.drawArrays(gl.TRIANGLES, 0, numPositions);
+      // If this node is drawable (not just a group), then draw it
+      if (node.draw) {
+        modelViewMatrix = mult(V, currentWorldMatrix);
+        gl.uniformMatrix4fv(
+          modelViewMatrixLoc,
+          false,
+          flatten(modelViewMatrix)
+        );
+        const nMat = normalMatrix(modelViewMatrix, true);
+        gl.uniformMatrix3fv(normalMatrixLoc, false, flatten(nMat));
+
+        // Combine part color with material tint
+        const materialDiffuse = mult(materialTint, node.color);
+        const materialAmbient = scale(0.2, materialDiffuse);
+        const materialSpecular = vec4(1.0, 1.0, 1.0, 1.0); // Simple white specular
+
+        // Set per-object material uniforms
+        const ambientProduct = mult(light.ambient, materialAmbient);
+        const diffuseProduct = mult(light.diffuse, materialDiffuse);
+        const specularProduct = mult(light.specular, materialSpecular);
+        gl.uniform4fv(ambientProdLoc, flatten(ambientProduct));
+        gl.uniform4fv(diffuseProdLoc, flatten(diffuseProduct));
+        gl.uniform4fv(specularProdLoc, flatten(specularProduct));
+        gl.uniform4fv(baseColorLoc, flatten(materialDiffuse));
+
+        // Draw the unit cube
+        gl.drawArrays(gl.TRIANGLES, 0, numPositions);
+      }
+
+      // Recursively draw all children
+      if (node.children && node.children.length > 0) {
+        for (let i = 0; i < node.children.length; i++) {
+          // Pass this node's world matrix as the parent matrix to its children
+          drawNode(node.children[i], currentWorldMatrix);
+        }
+      }
     }
+    // --- END Recursive Traversal ---
+
+    // Start drawing from the root node with an identity matrix
+    drawNode(objectTreeRoot, mat4());
+
     animationId = requestAnimationFrame(render);
   }
 
@@ -646,7 +700,9 @@ function runApp_ACViewer(
   setupGL();
   hookUI();
   applyTextureSelection(); // Init texture to 'none'
-  render();
+
+  // Start the render loop
+  render(0);
 
   return {
     stop: stop,

@@ -1,12 +1,47 @@
 (function () {
-  function part(list, t, c, tag) {
-    list.push({ transform: t, color: c, tag: tag || null });
+  /**
+   * Creates a new drawable part node.
+   * @param {mat4} t - The local transformation matrix (relative to its parent).
+   * @param {vec4} c - The color of the part.
+   * @param {string} tag - A tag for identification (e.g., animation).
+   * @returns {object} A scene graph node.
+   */
+  function createPartNode(t, c, tag) {
+    return {
+      localTransform: t,
+      color: c,
+      tag: tag || null,
+      children: [], // This part could have children, but typically leaf nodes don't
+      draw: true, // This node represents a drawable cube
+    };
   }
 
-  function addAirConditioner(parts, center, size) {
+  /**
+   * Creates a new group node.
+   * A group node is invisible but holds children and a transformation.
+   * Useful for grouping parts (e.g., the whole louver assembly).
+   * @param {mat4} t - The local transformation matrix (relative to its parent).
+   * @param {string} tag - A tag for identification.
+   * @returns {object} A scene graph node.
+   */
+  function createGroupNode(t, tag) {
+    return {
+      localTransform: t,
+      color: null,
+      tag: tag || null,
+      children: [],
+      draw: false, // This node is just a transform/group, not drawn
+    };
+  }
+
+  /**
+   * Adds all the parts of an air conditioner to a parent scene graph node.
+   * @param {object} parentNode - The scene graph node to attach the AC to.
+   * @param {number} size - A scaling factor for the whole unit.
+   */
+  function addAirConditioner(parentNode, size) {
     const s = size || 1.0;
-    const [cx, cy, cz] = center;
-    const C = translate(cx, cy, cz);
+    // No center [cx, cy, cz] or 'C' matrix. The parentNode's transform *is* the center.
     const cfg = (typeof window !== "undefined" && window.acConfig) || {};
     // Colors
     const bodyCol = vec4(0.95, 0.96, 0.98, 1);
@@ -24,95 +59,78 @@
     const panelT = 0.06 * s; // shell thickness
 
     // Back plate (against wall)
-    part(
-      parts,
-      mult(
-        C,
-        mult(translate(0, 0, -bd / 2 + panelT / 2), scale(bw, bh, panelT))
-      ),
-      bodyCol
+    parentNode.children.push(
+      createPartNode(
+        mult(translate(0, 0, -bd / 2 + panelT / 2), scale(bw, bh, panelT)),
+        bodyCol
+      )
     );
 
     // Top/Bottom caps and side walls (outer shell)
-    part(
-      parts,
-      mult(
-        C,
-        mult(translate(0, bh / 2.2 - panelT / 2, 0), scale(bw, panelT, bd))
-      ),
-      bodyCol
+    parentNode.children.push(
+      createPartNode(
+        mult(translate(0, bh / 2.2 - panelT / 2, 0), scale(bw, panelT, bd)),
+        bodyCol
+      )
     );
-    part(
-      parts,
-      mult(
-        C,
-        mult(translate(0, -bh / 2.4 + panelT / 2, 0), scale(bw, panelT, bd))
-      ),
-      bodyCol
+    parentNode.children.push(
+      createPartNode(
+        mult(translate(0, -bh / 2.4 + panelT / 2, 0), scale(bw, panelT, bd)),
+        bodyCol
+      )
     );
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(-bw / 2 + panelT / 2, 0, 0),
           scale(panelT, bh - 3 * panelT, bd)
-        )
-      ),
-      bodyCol
+        ),
+        bodyCol
+      )
     );
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(bw / 2 - panelT / 2, 0, 0),
           scale(panelT, bh - 3 * panelT, bd)
-        )
-      ),
-      bodyCol
+        ),
+        bodyCol
+      )
     );
 
     // Front fascia (slightly proud to fake curvature)
     const frontZ = bd / 2 - panelT / 2;
-    // Lower fascia slightly and make it a bit taller so casing fits around the lowered outlet
     const fasciaYOffsetFrac = cfg.fasciaYOffsetFrac ?? 0.14;
     const fasciaHFrac = cfg.fasciaHFrac ?? 0.56;
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(0, bh * fasciaYOffsetFrac, frontZ),
           scale(bw - 2 * panelT, bh * fasciaHFrac, panelT)
-        )
-      ),
-      fasciaCol
+        ),
+        fasciaCol
+      )
     );
     // Subtle seam under fascia
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(0, -bh * 0.05, frontZ + panelT * 0.2),
           scale(bw - 2 * panelT, 0.01 * s, 0.01 * s)
-        )
-      ),
-      seamCol
+        ),
+        seamCol
+      )
     );
 
     // Bottom fascia lip/seam to suggest the lower cover edge
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(0, -bh * 0.32, frontZ + panelT * 0.15),
           scale(bw - 2 * panelT, 0.008 * s, 0.012 * s)
-        )
-      ),
-      seamCol
+        ),
+        seamCol
+      )
     );
 
     // Front edge bevel hints (left and right thin vertical strips)
@@ -121,102 +139,86 @@
     const bevelH = bh * 0.55;
     const bevelY = -bh * 0.05;
     // Left
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(-bw / 2 + panelT, bevelY, bevelZ1),
           scale(0.01 * s, bevelH, 0.01 * s)
-        )
-      ),
-      seamCol
+        ),
+        seamCol
+      )
     );
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(-bw / 2 + panelT * 1.6, bevelY, bevelZ2),
           scale(0.01 * s, bevelH, 0.01 * s)
-        )
-      ),
-      seamCol
+        ),
+        seamCol
+      )
     );
     // Right
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(bw / 2 - panelT, bevelY, bevelZ1),
           scale(0.01 * s, bevelH, 0.01 * s)
-        )
-      ),
-      seamCol
+        ),
+        seamCol
+      )
     );
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(bw / 2 - panelT * 1.6, bevelY, bevelZ2),
           scale(0.01 * s, bevelH, 0.01 * s)
-        )
-      ),
-      seamCol
+        ),
+        seamCol
+      )
     );
 
     // Top intake grille (on top face, near front edge)
     const grillSlats = Math.max(4, Math.floor(cfg.grillSlats ?? 12));
     for (let i = 0; i < grillSlats; i++) {
       const zOff = bd / 2 - panelT - i * 0.03 * s;
-      part(
-        parts,
-        mult(
-          C,
+      parentNode.children.push(
+        createPartNode(
           mult(
             translate(0, bh / 2 - panelT, zOff),
             scale(bw * 0.8, 0.012 * s, 0.012 * s)
-          )
-        ),
-        seamCol,
-        "acTopGrille"
+          ),
+          seamCol,
+          "acTopGrille"
+        )
       );
     }
 
     // Indicator window and LED (right side)
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(bw * 0.36, 0.1 * bh, frontZ + panelT * 0.3),
           scale(0.22 * s, 0.12 * s, 0.03 * s)
-        )
-      ),
-      darkGrayCol,
-      "acDisplay"
+        ),
+        darkGrayCol,
+        "acDisplay"
+      )
     );
     // Display glass overlay and bezel details
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(bw * 0.36, 0.1 * bh, frontZ + panelT * 0.33),
           scale(0.2 * s, 0.1 * s, 0.01 * s)
-        )
-      ),
-      vec4(0.14, 0.16, 0.18, 1),
-      "acDisplayGlass"
+        ),
+        vec4(0.14, 0.16, 0.18, 1),
+        "acDisplayGlass"
+      )
     );
     // Simple icon bar inside display (3 bars)
     for (let i = 0; i < 3; i++) {
-      part(
-        parts,
-        mult(
-          C,
+      parentNode.children.push(
+        createPartNode(
           mult(
             translate(
               bw * 0.36 - 0.06 * s + i * 0.06 * s,
@@ -224,87 +226,75 @@
               frontZ + panelT * 0.34
             ),
             scale(0.02 * s, 0.03 * s, 0.005 * s)
-          )
-        ),
-        vec4(0.22, 0.75, 0.95, 1),
-        "acDisplayIcon"
+          ),
+          vec4(0.22, 0.75, 0.95, 1),
+          "acDisplayIcon"
+        )
       );
     }
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(bw * 0.42, -0.08 * bh, frontZ + panelT * 0.35),
           scale(0.05 * s, 0.05 * s, 0.02 * s)
-        )
-      ),
-      ledCol,
-      "acLED"
+        ),
+        ledCol,
+        "acLED"
+      )
     );
     // Power button with bezel near the LED
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(bw * 0.46, -0.08 * bh, frontZ + panelT * 0.33),
           scale(0.08 * s, 0.08 * s, 0.02 * s)
-        )
-      ),
-      vec4(0.9, 0.92, 0.95, 1),
-      "acPowerBtnBezel"
+        ),
+        vec4(0.9, 0.92, 0.95, 1),
+        "acPowerBtnBezel"
+      )
     );
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
-          translate(bw * 0.46, -0.08 * bh, frontZ + panelT * 0.34), // <-- FIX: Corrected typo from 4.6 to 0.46
+          translate(bw * 0.46, -0.08 * bh, frontZ + panelT * 0.34),
           scale(0.06 * s, 0.06 * s, 0.02 * s)
-        )
-      ),
-      vec4(0.22, 0.24, 0.28, 1),
-      "acPowerBtn"
+        ),
+        vec4(0.22, 0.24, 0.28, 1),
+        "acPowerBtn"
+      )
     );
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(bw * 0.46, -0.03 * bh, frontZ + panelT * 0.35),
           scale(0.02 * s, 0.02 * s, 0.02 * s)
-        )
-      ),
-      vec4(0.2, 0.9, 0.5, 1),
-      "acPowerBtnLED"
+        ),
+        vec4(0.2, 0.9, 0.5, 1),
+        "acPowerBtnLED"
+      )
     );
     // Additional small indicators near the display (dim white/blue)
     const led2 = vec4(0.6, 0.8, 1.0, 1);
     const led3 = vec4(0.95, 0.95, 0.98, 1);
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(bw * 0.32, -0.08 * bh, frontZ + panelT * 0.33),
           scale(0.035 * s, 0.035 * s, 0.02 * s)
-        )
-      ),
-      led2,
-      "acLED2"
+        ),
+        led2,
+        "acLED2"
+      )
     );
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(bw * 0.28, -0.08 * bh, frontZ + panelT * 0.33),
           scale(0.03 * s, 0.03 * s, 0.02 * s)
-        )
-      ),
-      led3,
-      "acLED3"
+        ),
+        led3,
+        "acLED3"
+      )
     );
 
     // Outlet recess (rectangular opening)
@@ -313,31 +303,26 @@
     const outletY = -bh * (cfg.outletYOffsetFrac ?? 0.27);
     const frontInnerZ = bd / 2 - panelT;
     const recessD = (cfg.recessDepthFrac ?? 0.1) * bd;
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(0, outletY, frontInnerZ - recessD / 2),
           scale(outletW, outletH, recessD)
-        )
-      ),
-      recessCol,
-      "acOutlet"
+        ),
+        recessCol,
+        "acOutlet"
+      )
     );
 
     // --- FIX: Rebuilt outlet frame and thickened bottom to close all gaps ---
     const lipT = 0.02 * s;
     const lipD = 0.04 * bd;
-    // Extra upward overlap to close the tiny seam between flap and bottom frame
-    const extraCloseEps = (cfg.closeGapEps ?? 0.05) * s; // <-- FIX: Increased from 0.03 to 0.05
+    const extraCloseEps = (cfg.closeGapEps ?? 0.05) * s;
     const bottomLipT = lipT * 2.5; // Base thickness
 
     // Top lip
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(
             0,
@@ -345,97 +330,85 @@
             frontInnerZ - lipD / 2
           ),
           scale(outletW + lipT * 2, lipT, lipD)
-        )
-      ),
-      bodyCol
+        ),
+        bodyCol
+      )
     );
 
-    // Bottom lip (now a thicker lower frame) — lift slightly to overlap the flap plane (close the gap)
-    part(
-      parts,
-      mult(
-        C,
+    // Bottom lip (now a thicker lower frame)
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(
             0,
-            // Raise a tiny epsilon so the top face sits just above hingeY
             outletY - outletH / 2 - bottomLipT / 2 + extraCloseEps,
             frontInnerZ - lipD / 2
           ),
-          scale(outletW + lipT * 2, bottomLipT, lipD) // Use new thickness for scale
-        )
-      ),
-      bodyCol
+          scale(outletW + lipT * 2, bottomLipT, lipD)
+        ),
+        bodyCol
+      )
     );
 
-    // Solid side frames (adjusted to connect perfectly with new thicker bottom)
+    // Solid side frames
     const frameSideW = (bw - outletW) / 2;
-    // Extend the side frames to match the slight upward lift of the bottom lip
-    const frameSideH = outletH + lipT + bottomLipT + extraCloseEps; // extraCloseEps keeps side connection seamless
-    const frameSideY = outletY + (lipT - bottomLipT) / 2 + extraCloseEps / 2; // recenter with the added height
+    const frameSideH = outletH + lipT + bottomLipT + extraCloseEps;
+    const frameSideY = outletY + (lipT - bottomLipT) / 2 + extraCloseEps / 2;
     const frameSideD = lipD;
     // Left Frame
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(
             -outletW / 2 - frameSideW / 2,
-            frameSideY, // Use new Y position
+            frameSideY,
             frontInnerZ - frameSideD / 2
           ),
-          scale(frameSideW, frameSideH, frameSideD) // Use new height
-        )
-      ),
-      bodyCol
+          scale(frameSideW, frameSideH, frameSideD)
+        ),
+        bodyCol
+      )
     );
     // Right Frame
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(
             outletW / 2 + frameSideW / 2,
-            frameSideY, // Use new Y position
+            frameSideY,
             frontInnerZ - frameSideD / 2
           ),
-          scale(frameSideW, frameSideH, frameSideD) // Use new height
-        )
-      ),
-      bodyCol
+          scale(frameSideW, frameSideH, frameSideD)
+        ),
+        bodyCol
+      )
     );
     // --- End of Frame Fix ---
 
     // Back panel inside recess to darken the interior
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(0, outletY, frontInnerZ - recessD + 0.005 * bd),
           scale(outletW * 0.96, outletH * 0.96, 0.01 * bd)
-        )
-      ),
-      vec4(0.25, 0.27, 0.3, 1),
-      "acOutletBack"
+        ),
+        vec4(0.25, 0.27, 0.3, 1),
+        "acOutletBack"
+      )
     );
     // Horizontal coil fins inside recess
     const coilCount = 10;
     for (let i = 0; i < coilCount; i++) {
       const yPos = outletY - outletH / 2 + (i + 0.5) * (outletH / coilCount);
-      part(
-        parts,
-        mult(
-          C,
+      parentNode.children.push(
+        createPartNode(
           mult(
             translate(0, yPos, frontInnerZ - recessD * 0.75),
             scale(outletW * 0.92, 0.006 * s, 0.02 * bd)
-          )
-        ),
-        vec4(0.32, 0.34, 0.38, 1),
-        "acCoilFin"
+          ),
+          vec4(0.32, 0.34, 0.38, 1),
+          "acCoilFin"
+        )
       );
     }
     // Blower roller hint (segmented bar)
@@ -443,10 +416,8 @@
     for (let i = 0; i < segCount; i++) {
       const x = -outletW / 2 + (i + 0.5) * (outletW / segCount);
       const shade = 0.3 + (i % 2) * 0.06;
-      part(
-        parts,
-        mult(
-          C,
+      parentNode.children.push(
+        createPartNode(
           mult(
             translate(
               x,
@@ -454,20 +425,18 @@
               frontInnerZ - recessD * 0.55
             ),
             scale((outletW / segCount) * 0.8, 0.06 * outletH, 0.035 * bd)
-          )
-        ),
-        vec4(shade, shade + 0.02, shade + 0.04, 1),
-        "acBlowerSeg"
+          ),
+          vec4(shade, shade + 0.02, shade + 0.04, 1),
+          "acBlowerSeg"
+        )
       );
     }
 
-    // Filler mask near the top of the outlet to close any tiny remaining gaps when the flap swings up
+    // Filler mask near the top of the outlet
     const maskH = outletH * (cfg.maskHFrac ?? 0.28);
     const maskD = (cfg.maskDepthFrac ?? 0.05) * bd;
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(
             0,
@@ -475,17 +444,15 @@
             frontInnerZ - maskD / 2
           ),
           scale(outletW - lipT * 0.5, maskH, maskD)
-        )
-      ),
-      bodyCol,
-      "acOutletMask"
+        ),
+        bodyCol,
+        "acOutletMask"
+      )
     );
-    // Bottom mask to further tighten the visible gap from below
+    // Bottom mask
     const maskBH = outletH * (cfg.maskBottomHFrac ?? 0.35);
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(
             0,
@@ -493,35 +460,31 @@
             frontInnerZ - maskD / 2
           ),
           scale(outletW - lipT * 0.5, maskBH, maskD)
-        )
-      ),
-      bodyCol,
-      "acOutletMaskBottom"
+        ),
+        bodyCol,
+        "acOutletMaskBottom"
+      )
     );
 
     // Internal vertical vanes (static)
     const vaneCount = Math.max(0, Math.floor(cfg.vaneCount ?? 6));
     for (let i = 0; i < vaneCount; i++) {
       const xPos = -outletW / 2 + (i + 0.5) * (outletW / vaneCount);
-      part(
-        parts,
-        mult(
-          C,
+      parentNode.children.push(
+        createPartNode(
           mult(
             translate(xPos, outletY, frontInnerZ - recessD * 0.3),
             scale(0.02 * s, outletH * 0.9, 0.02 * s)
-          )
-        ),
-        vaneCol,
-        "acVane"
+          ),
+          vaneCol,
+          "acVane"
+        )
       );
     }
 
     // Hinge seam bar behind flap
-    part(
-      parts,
-      mult(
-        C,
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(
             0,
@@ -529,9 +492,9 @@
             frontInnerZ - 0.01 * bd
           ),
           scale(outletW, panelT * 0.5, 0.01 * bd)
-        )
-      ),
-      seamCol
+        ),
+        seamCol
+      )
     );
 
     // Bottom micro vents band to add detail (thin slits)
@@ -541,69 +504,80 @@
     const ventW = (bw * 0.78) / ventCount;
     for (let i = 0; i < ventCount; i++) {
       const x = -bw * 0.39 + (i + 0.5) * ventW;
-      part(
-        parts,
-        mult(
-          C,
+      parentNode.children.push(
+        createPartNode(
           mult(
             translate(x, ventBandY, ventBandZ),
             scale(ventW * 0.6, 0.006 * s, 0.012 * s)
-          )
-        ),
-        seamCol,
-        "acVent"
+          ),
+          seamCol,
+          "acVent"
+        )
       );
     }
 
-    // Swing flap (animated) — thin plate + small front lip, pivot on bottom-front edge
+    // --- HIERARCHICAL LOUVER (SWING FLAP) ---
+    // This is the new, hierarchical way.
+    // We create an invisible "group" node at the pivot point.
+    // The flap and lip are children of this group node.
+    // Animating the group node (acLouverAssembly) will animate all its children.
     const flapW = outletW;
     const flapH = (cfg.flapHFrac ?? 0.055) * s; // thickness
-    // Depth determines coverage when closed (rotated vertical). Make it cover the outlet height.
     const flapD =
       cfg.flapDepth != null
         ? cfg.flapDepth
         : cfg.flapDepthFrac != null
         ? cfg.flapDepthFrac * bd
-        : outletH * 1.02; // default: slightly larger than outlet height for clean closure
+        : outletH * 1.02;
     const hingeY = outletY - outletH / 2; // bottom of outlet = hinge line
-    const flapCenterY = hingeY - flapH / 2;
-    const flapCenterZ = frontInnerZ + flapD / 2; // back edge aligns to frontInnerZ
-    const louverPivot = [cx + 0, cy + hingeY, cz + frontInnerZ];
+    // The louverPivot is relative to the AC's center (the parentNode)
+    const louverPivotT = translate(0, hingeY, frontInnerZ);
 
-    // main plate
-    let flapMain = mult(
-      translate(0, flapCenterY, flapCenterZ),
+    // Create the group node at the pivot point
+    const louverAssemblyNode = createGroupNode(
+      louverPivotT,
+      "acLouverAssembly"
+    );
+    parentNode.children.push(louverAssemblyNode);
+
+    // 1. Main Flap
+    // Defined relative to the pivot node.
+    // Pivot is at (0, hingeY, frontInnerZ)
+    // Old flap center was (0, hingeY - flapH / 2, frontInnerZ + flapD / 2)
+    // New local center (relative to pivot) is (0, -flapH / 2, +flapD / 2)
+    const flapMainLocalT = mult(
+      translate(0, -flapH / 2, flapD / 2),
       scale(flapW, flapH, flapD)
     );
-    flapMain = mult(C, flapMain);
-    part(parts, flapMain, bodyCol, "acLouver");
-    parts[parts.length - 1].pivot = louverPivot;
-
-    // front lip with slight tilt
-    const lipD2 = (cfg.flapLipDepthFrac ?? 0.06) * bd;
-    let flapLip = scale(flapW, flapH * 0.6, lipD2);
-    flapLip = mult(rotateX(-(cfg.flapLipTiltDeg ?? 12)), flapLip);
-    // Slight overlap with the main flap to avoid a visible seam
-    const lipOverlap = (cfg.flapLipOverlapFrac ?? 0.01) * bd;
-    flapLip = mult(
-      translate(
-        0,
-        flapCenterY,
-        flapCenterZ + flapD / 2 + lipD2 / 2 - lipOverlap
-      ),
-      flapLip
+    louverAssemblyNode.children.push(
+      createPartNode(flapMainLocalT, bodyCol, "acLouverPart")
     );
-    flapLip = mult(C, flapLip);
-    part(parts, flapLip, bodyCol, "acLouver");
-    parts[parts.length - 1].pivot = louverPivot;
 
-    // (Removed rotating seal per request; rely solely on slight upward shift of bottom slab)
+    // 2. Front Lip
+    // Defined relative to the pivot node.
+    const lipD2 = (cfg.flapLipDepthFrac ?? 0.06) * bd;
+    const lipOverlap = (cfg.flapLipOverlapFrac ?? 0.01) * bd;
+    // Old lip center was (0, hingeY - flapH / 2, frontInnerZ + flapD + lipD2/2 - lipOverlap)
+    // New local center (relative to pivot) is (0, -flapH / 2, flapD + lipD2/2 - lipOverlap)
+    const lipLocalPos = translate(
+      0,
+      -flapH / 2,
+      flapD + lipD2 / 2 - lipOverlap
+    );
+    const lipLocalRot = rotateX(-(cfg.flapLipTiltDeg ?? 12));
+    const lipLocalScale = scale(flapW, flapH * 0.6, lipD2);
 
-    // Small gasket strip just inside the outlet under the hinge to close tiny gaps when closed
-    part(
-      parts,
-      mult(
-        C,
+    const flapLipLocalT = mult(lipLocalPos, mult(lipLocalRot, lipLocalScale));
+    louverAssemblyNode.children.push(
+      createPartNode(flapLipLocalT, bodyCol, "acLouverPart")
+    );
+
+    // (The original part() calls for 'acLouver' are no longer needed,
+    // as they are replaced by the two parts above)
+
+    // Small gasket strip just inside the outlet under the hinge
+    parentNode.children.push(
+      createPartNode(
         mult(
           translate(
             0,
@@ -611,25 +585,45 @@
             frontInnerZ - (cfg.gasketDepthFrac ?? 0.005) * bd
           ),
           scale(outletW, flapH * 0.3, (cfg.gasketDepthFrac ?? 0.02) * bd)
-        )
-      ),
-      bodyCol,
-      "acGasket"
+        ),
+        bodyCol,
+        "acGasket"
+      )
     );
   }
 
+  /**
+   * Creates the complete scene graph for the AC model, including the wall.
+   * @param {object} opts - Options (currently unused).
+   * @returns {object} The root node of the scene graph.
+   */
   function createAcModel(opts) {
-    const parts = [];
+    // This is the root of our entire scene graph
+    const rootNode = createGroupNode(mat4(), "sceneRoot");
+
     const wallCol = vec4(0.92, 0.93, 0.96, 1);
-    part(
-      parts,
+    // 1. Add Wall
+    const wallNode = createPartNode(
       mult(translate(0, 0, -1.4), scale(12, 7, 0.2)),
       wallCol,
       "wall"
     );
-    // Slightly adjust placement so the unit looks naturally mounted and framed in view
-    addAirConditioner(parts, [0, 1.25, -0.9], 1.6);
-    return parts;
+    rootNode.children.push(wallNode);
+
+    // 2. Add AC
+    // Create a group node for the AC. This node's transform is the
+    // old 'center' or 'C' matrix. We can rotate this node
+    // to spin the whole AC.
+    const acRootNode = createGroupNode(
+      translate(0, 1.25, -0.9),
+      "acRoot" // Tag this node for the spin animation
+    );
+    rootNode.children.push(acRootNode);
+
+    // Add all the AC parts as children of the acRootNode
+    addAirConditioner(acRootNode, 1.6);
+
+    return rootNode;
   }
   window.createAcModel = createAcModel;
 })();
