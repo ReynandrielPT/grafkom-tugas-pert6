@@ -100,8 +100,7 @@
         align-items: center;
       }
       .button-group button,
-      select,
-      input[type="color"] {
+      select {
         font-size: 0.95rem;
         padding: 0.5rem 0.9rem;
         border: 1px solid var(--panel-border);
@@ -113,8 +112,7 @@
           border-color 0.2s ease, box-shadow 0.2s ease;
       }
       .button-group button:hover,
-      select:hover,
-      input[type="color"]:hover {
+      select:hover {
         background-color: #fafafa;
         border-color: #dfe3ec;
       }
@@ -167,7 +165,40 @@
         box-shadow: 0 6px 16px rgba(124, 58, 237, 0.18);
       }
 
-      /* --- MODIFIED: Media Query for Responsiveness --- */
+      /* --- NEW: Color Picker Styles --- */
+      .color-picker-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 0.75rem;
+      }
+      .color-picker-row label {
+        margin-top: 0;
+        font-weight: 400;
+        color: var(--text);
+      }
+      input[type="color"] {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        width: 2.5rem;
+        height: 2.5rem;
+        padding: 0;
+        background-color: transparent;
+        border: 1px solid var(--panel-border);
+        border-radius: 0.5rem;
+        cursor: pointer;
+      }
+      input[type="color"]::-webkit-color-swatch {
+        border-radius: 0.375rem;
+        border: none;
+      }
+      input[type="color"]::-moz-color-swatch {
+        border-radius: 0.375rem;
+        border: none;
+      }
+      /* --- End of New Styles --- */
+
       @media (max-width: 768px) {
         body {
           flex-direction: column;
@@ -181,7 +212,7 @@
         .controls-container {
           flex-basis: auto;
           width: 100%;
-          max-width: 25rem; /* Keep controls from stretching too wide */
+          max-width: 25rem;
           max-height: none;
         }
       }
@@ -308,10 +339,12 @@
             Enabled</label
           >
         </div>
-        <div class="mt-2">
+        
+        <div class="color-picker-row mt-2">
           <label for="objectColor">Object Color (Tint)</label>
           <input id="objectColor" type="color" value="#ffffff" />
         </div>
+
         <label style="margin-top: 0.5rem">Component Intensities</label>
         <div class="grid grid-cols-3 gap-2">
           <div>
@@ -348,16 +381,17 @@
             />
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div>
+
+        <div class="grid grid-cols-1 gap-1">
+          <div class="color-picker-row">
             <label for="ambientColor">Ambient Color</label>
             <input id="ambientColor" type="color" value="#333333" />
           </div>
-          <div>
+          <div class="color-picker-row">
             <label for="diffuseColor">Diffuse Color</label>
             <input id="diffuseColor" type="color" value="#ffffff" />
           </div>
-          <div>
+          <div class="color-picker-row">
             <label for="specularColor">Specular Color</label>
             <input id="specularColor" type="color" value="#ffffff" />
           </div>
@@ -366,6 +400,7 @@
             <input id="shininess" type="range" min="1" max="128" value="50" />
           </div>
         </div>
+
         <label style="margin-top: 0.75rem">Light Position</label>
         <div class="grid grid-cols-3 gap-2">
           <div>
@@ -373,8 +408,8 @@
             <input
               id="lightX"
               type="range"
-              min="-10"
-              max="10"
+              min="-20"
+              max="20"
               value="2"
               step="0.1"
             />
@@ -384,8 +419,8 @@
             <input
               id="lightY"
               type="range"
-              min="-10"
-              max="10"
+              min="-20"
+              max="20"
               value="3"
               step="0.1"
             />
@@ -395,8 +430,8 @@
             <input
               id="lightZ"
               type="range"
-              min="-10"
-              max="10"
+              min="-20"
+              max="20"
               value="4"
               step="0.1"
             />
