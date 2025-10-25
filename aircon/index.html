@@ -1,180 +1,690 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8" />
     <title>Air Conditioner Viewer - WebGL</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
+      :root {
+        --bg-start: #f7f7fb;
+        --bg-end: #eef1f7;
+        --panel-bg: #ffffff;
+        --panel-border: #e8eaf1;
+        --text: #1f2937; /* gray-800 */
+        --muted: #6b7280; /* gray-500 */
+        --accent: #7c3aed; /* violet-600 */
+        --accent-hover: #6d28d9; /* violet-700 */
+        --accent-soft: #ede9fe; /* violet-50 */
+        --shadow: 0 10px 25px rgba(16, 24, 40, 0.08),
+          0 2px 6px rgba(16, 24, 40, 0.06);
+      }
+      * {
+        box-sizing: border-box;
+      }
       body {
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu,
-          Cantarell, Noto Sans, Helvetica, Arial;
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+        color: var(--text);
         display: flex;
-        gap: 1.25rem;
-        padding: 1rem;
-        background: #f7f7fb;
+        justify-content: center;
+        gap: 2rem;
+        padding: 1.25rem;
+        background: radial-gradient(
+          1200px 600px at 20% -10%,
+          #ffffff 0%,
+          var(--bg-start) 40%,
+          var(--bg-end) 100%
+        );
+      }
+      .main-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+        flex: 1 1 auto;
+        min-width: 320px;
+      }
+      h1 {
+        margin: 0.25rem 0 0.5rem 0;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        background: linear-gradient(
+          90deg,
+          #111827 0%,
+          #4c1d95 60%,
+          #7c3aed 100%
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      h2 {
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
+        font-weight: 700;
+        font-size: 1.05rem;
         color: #111827;
       }
+      .controls-container {
+        flex: 0 0 25rem;
+        max-height: 95vh;
+        overflow-y: auto;
+        background: var(--panel-bg);
+        padding: 1rem 1.1rem;
+        border-radius: 14px;
+        border: 1px solid var(--panel-border);
+        box-shadow: var(--shadow);
+      }
       #canvas-container canvas {
-        border-radius: 12px;
-        border: 1px solid #e5e7eb;
-        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
-        background: #fff;
+        width: 100%;
+        height: auto;
+        max-width: 800px;
+        border-radius: 14px;
+        border: 1px solid var(--panel-border);
+        box-shadow: 0 20px 35px rgba(16, 24, 40, 0.12),
+          0 6px 10px rgba(16, 24, 40, 0.08);
         cursor: grab;
+        background: #ffffff;
       }
       #canvas-container canvas:active {
         cursor: grabbing;
       }
-      .panel {
-        width: 25rem;
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        padding: 1rem;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      .button-group {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      .button-group button,
+      select,
+      input[type="color"] {
+        font-size: 0.95rem;
+        padding: 0.5rem 0.9rem;
+        border: 1px solid var(--panel-border);
+        border-radius: 10px;
+        cursor: pointer;
+        background-color: #ffffff;
+        color: var(--text);
+        transition: background-color 0.2s ease, color 0.2s ease,
+          border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+      .button-group button:hover,
+      select:hover,
+      input[type="color"]:hover {
+        background-color: #fafafa;
+        border-color: #dfe3ec;
+      }
+      .button-group .active {
+        background-color: var(--accent);
+        color: #ffffff;
+        border-color: var(--accent);
+        box-shadow: 0 4px 14px rgba(124, 58, 237, 0.3);
+      }
+      label {
+        display: block;
+        margin-top: 1rem;
+        font-weight: 600;
+        color: #111827;
       }
       input[type="range"] {
         width: 100%;
-        accent-color: #7c3aed;
+        accent-color: var(--accent);
       }
-      .btn {
-        padding: 0.45rem 0.8rem;
-        border: 1px solid #e5e7eb;
-        border-radius: 10px;
-        background: #fff;
-        cursor: pointer;
+      input[type="radio"],
+      input[type="checkbox"] {
+        accent-color: var(--accent);
       }
-      .btn.active {
-        background: #7c3aed;
-        color: #fff;
-        border-color: #7c3aed;
+      .instructions {
+        font-size: 0.92em;
+        color: var(--muted);
+        background: #ffffff;
+        padding: 12px;
+        border-radius: 12px;
+        margin-top: 1rem;
+        border: 1px solid var(--panel-border);
+      }
+      #textureDropzone {
+        border-color: rgba(124, 58, 237, 0.35) !important;
+        background: linear-gradient(
+          0deg,
+          rgba(124, 58, 237, 0.04),
+          rgba(124, 58, 237, 0.04)
+        );
+        color: #4b5563;
+        transition: background-color 0.2s ease, box-shadow 0.2s ease,
+          border-color 0.2s ease;
+      }
+      #textureDropzone:hover {
+        background: linear-gradient(
+          0deg,
+          rgba(124, 58, 237, 0.08),
+          rgba(124, 58, 237, 0.08)
+        );
+        box-shadow: 0 6px 16px rgba(124, 58, 237, 0.18);
+      }
+
+      /* --- MODIFIED: Media Query for Responsiveness --- */
+      @media (max-width: 768px) {
+        body {
+          flex-direction: column;
+          align-items: center;
+          padding: 1rem;
+        }
+        .main-container {
+          flex-basis: auto;
+          width: 100%;
+        }
+        .controls-container {
+          flex-basis: auto;
+          width: 100%;
+          max-width: 25rem; /* Keep controls from stretching too wide */
+          max-height: none;
+        }
       }
     </style>
   </head>
+
   <body>
-    <div>
-      <h1
-        style="
-          margin: 0 0 0.5rem 0;
-          font-weight: 700;
-          background: linear-gradient(90deg, #111827, #7c3aed);
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-        "
-      >
-        Air Conditioner Viewer
-      </h1>
+    <div class="main-container">
+      <h1>Air Conditioner Viewer</h1>
       <div id="canvas-container">
         <canvas id="gl-canvas" width="800" height="500"></canvas>
       </div>
     </div>
 
-    <div class="panel">
-      <h2 class="font-bold mb-2">Controls</h2>
-      <div class="mb-3 text-sm text-gray-600">
-        Drag to orbit, wheel to zoom. Use Swing and Open Angle to control
-        louvers.
-      </div>
+    <div class="controls-container">
+      <div id="viewer-controls">
+        <div class="instructions">
+          <b>Controls:</b>
+          <ul>
+            <li><b>Rotate Camera:</b> Drag mouse.</li>
+            <li><b>Zoom:</b> Scroll mouse.</li>
+            <li><b>Swing Louver:</b> Press Play.</li>
+          </ul>
+        </div>
 
-      <h3 class="font-semibold">Rendering</h3>
-      <div class="flex gap-2 mb-2">
-        <label
-          ><input type="radio" name="proj" value="perspective" checked />
-          Perspective</label
-        >
-        <label
-          ><input type="radio" name="proj" value="orthographic" /> Ortho</label
-        >
-      </div>
-      <div class="flex gap-2 mb-2">
-        <label
-          ><input type="radio" name="light" value="fragment" checked />
-          Fragment</label
-        >
-        <label><input type="radio" name="light" value="vertex" /> Vertex</label>
-      </div>
+        <h2>Projection & Camera</h2>
+        <div class="flex gap-4" style="margin-bottom: 1rem">
+          <label
+            ><input
+              type="radio"
+              name="projection"
+              value="perspective"
+              checked
+            />
+            Perspective</label
+          >
+          <label
+            ><input type="radio" name="projection" value="orthographic" />
+            Orthographic</label
+          >
+        </div>
+        <p>Current projection: <b id="current-projection">Perspective</b></p>
 
-      <h3 class="font-semibold mt-2">Lighting</h3>
-      <div class="grid grid-cols-2 gap-2 mb-2">
-        <label class="col-span-2 text-sm"
-          >Intensity <span id="intVal">1.00</span></label
-        >
+        <label>Camera Position Presets</label>
+        <div class="button-group" style="margin-bottom: 1rem">
+          <button id="btn-camera-front">Front</button>
+          <button id="btn-camera-side">Side</button>
+          <button id="btn-camera-top">Top</button>
+          <button id="btn-camera-isometric">Isometric</button>
+        </div>
+
+        <h2>Animation</h2>
+        <div class="button-group" style="margin-bottom: 1rem">
+          <button id="btnPlay">Play</button>
+          <button id="btnPause">Pause</button>
+          <button id="btnStop">Stop</button>
+        </div>
+        <label for="speed">Animation Speed</label>
+        <input id="speed" type="range" min="0" max="5" step="0.05" value="2" />
+
+        <div class="flex items-center gap-2 mt-2 mb-1">
+          <input id="acRotate" type="checkbox" />
+          <label for="acRotate">Rotate Model</label>
+        </div>
+        <label for="acRotateSpeed">Rotate Speed (deg/s)</label>
         <input
-          id="lightIntensity"
+          id="acRotateSpeed"
           type="range"
           min="0"
-          max="3"
-          step="0.01"
-          value="1"
+          max="180"
+          step="1"
+          value="30"
         />
-        <label class="col-span-2 text-sm">Shininess</label>
-        <input id="shininess" type="range" min="1" max="128" value="50" />
-      </div>
 
-      <h3 class="font-semibold mt-2">Animation</h3>
-      <div class="flex gap-2 mb-2">
-        <button id="btnPlay" class="btn">Play</button>
-        <button id="btnPause" class="btn">Pause</button>
-        <button id="btnStop" class="btn">Stop</button>
-        <button id="btnReset" class="btn">Reset</button>
-      </div>
-      <label class="text-sm">Speed</label>
-      <input id="speed" type="range" min="0" max="5" step="0.05" value="2" />
+        <h2 style="margin-top: 1rem">Air Conditioner</h2>
+        <label for="acOpenAngle"
+          >Swing Open Angle (<span id="acOpenAngleVal">135</span>°)</label
+        >
+        <input
+          id="acOpenAngle"
+          type="range"
+          min="0"
+          max="260"
+          step="1"
+          value="135"
+        />
 
-      <div class="flex items-center gap-2 mt-2 mb-1">
-        <input id="acRotate" type="checkbox" />
-        <label for="acRotate">Rotate Model</label>
-      </div>
-      <label class="text-sm">Rotate Speed (deg/s)</label>
-      <input
-        id="acRotateSpeed"
-        type="range"
-        min="0"
-        max="180"
-        step="1"
-        value="30"
-      />
+        <h2>Lighting</h2>
+        <div>
+          <label>Lighting Mode</label>
+          <div class="flex gap-4" style="margin-bottom: 0.5rem">
+            <label>
+              <input
+                type="radio"
+                name="lighting-mode"
+                value="fragment"
+                checked
+              />
+              Fragment (per-pixel)
+            </label>
+            <label>
+              <input type="radio" name="lighting-mode" value="vertex" />
+              Vertex (per-vertex)
+            </label>
+          </div>
+          <p>Current lighting: <b id="current-lighting">Fragment</b></p>
+        </div>
+        <div class="mt-2">
+          <label for="lightIntensity"
+            >Light Intensity <span id="lightIntensityValue">1.00</span></label
+          >
+          <input
+            id="lightIntensity"
+            type="range"
+            min="0"
+            max="3"
+            value="1"
+            step="0.01"
+          />
+        </div>
+        <div class="mt-2">
+          <label
+            ><input id="lightEnabled" type="checkbox" checked /> Light
+            Enabled</label
+          >
+        </div>
+        <div class="mt-2">
+          <label for="objectColor">Object Color (Tint)</label>
+          <input id="objectColor" type="color" value="#ffffff" />
+        </div>
+        <label style="margin-top: 0.5rem">Component Intensities</label>
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <small>Ambient <span id="ambientIntensityValue">1.00</span></small>
+            <input
+              id="ambientIntensity"
+              type="range"
+              min="0"
+              max="3"
+              value="1"
+              step="0.01"
+            />
+          </div>
+          <div>
+            <small>Diffuse <span id="diffuseIntensityValue">1.00</span></small>
+            <input
+              id="diffuseIntensity"
+              type="range"
+              min="0"
+              max="3"
+              value="1"
+              step="0.01"
+            />
+          </div>
+          <div>
+            <small>Specular <span id="specularIntensityValue">1.00</span></small>
+            <input
+              id="specularIntensity"
+              type="range"
+              min="0"
+              max="3"
+              value="1"
+              step="0.01"
+            />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="ambientColor">Ambient Color</label>
+            <input id="ambientColor" type="color" value="#333333" />
+          </div>
+          <div>
+            <label for="diffuseColor">Diffuse Color</label>
+            <input id="diffuseColor" type="color" value="#ffffff" />
+          </div>
+          <div>
+            <label for="specularColor">Specular Color</label>
+            <input id="specularColor" type="color" value="#ffffff" />
+          </div>
+          <div>
+            <label for="shininess">Shininess</label>
+            <input id="shininess" type="range" min="1" max="128" value="50" />
+          </div>
+        </div>
+        <label style="margin-top: 0.75rem">Light Position</label>
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <small>X</small>
+            <input
+              id="lightX"
+              type="range"
+              min="-10"
+              max="10"
+              value="2"
+              step="0.1"
+            />
+          </div>
+          <div>
+            <small>Y</small>
+            <input
+              id="lightY"
+              type="range"
+              min="-10"
+              max="10"
+              value="3"
+              step="0.1"
+            />
+          </div>
+          <div>
+            <small>Z</small>
+            <input
+              id="lightZ"
+              type="range"
+              min="-10"
+              max="10"
+              value="4"
+              step="0.1"
+            />
+          </div>
+        </div>
 
-      <h3 class="font-semibold mt-2">Air Conditioner</h3>
-      <div class="flex items-center gap-2 mb-2">
-        <input id="acSwing" type="checkbox" />
-        <label for="acSwing">Swing</label>
+        <h2 style="margin-top: 1rem">Texture</h2>
+        <div class="grid gap-2">
+          <div class="flex items-center gap-2">
+            <input id="textureEnabled" type="checkbox" />
+            <label for="textureEnabled">Enable Texture</label>
+          </div>
+          <div>
+            <label for="textureSelect">Texture Source</label>
+            <select id="textureSelect">
+              <option value="none">None</option>
+              <option value="checkerboard">Checkerboard</option>
+              <option value="custom">Custom Image (upload)</option>
+            </select>
+          </div>
+          <div id="textureFileRow" class="grid gap-2" style="display: none">
+            <div
+              id="textureDropzone"
+              class="border-2 border-dashed border-gray-400 rounded p-3 text-center text-gray-600 hover:bg-gray-50 cursor-pointer"
+            >
+              <div>
+                Drop image here or
+                <span class="text-blue-600 underline">browse</span>
+              </div>
+              <input
+                id="textureFile"
+                type="file"
+                accept="image/*"
+                style="display: none"
+              />
+            </div>
+            <div class="flex items-center gap-3">
+              <img
+                id="texturePreview"
+                alt="Preview"
+                class="h-12 w-12 object-cover rounded border"
+                style="display: none"
+              />
+              <div class="flex-1">
+                <div id="textureFileName" class="text-sm text-gray-700">
+                  No file selected
+                </div>
+                <div id="textureFileInfo" class="text-xs text-gray-500"></div>
+              </div>
+              <button
+                id="textureClear"
+                type="button"
+                class="px-2 py-1 border rounded text-gray-600 hover:bg-gray-100"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
-      <label class="text-sm"
-        >Open Angle (<span id="acOpenVal">225</span>°)</label
-      >
-      <input
-        id="acOpen"
-        type="range"
-        min="100"
-        max="225"
-        step="1"
-        value="225"
-      />
-
-      <!-- Simplified: image comparison and manual fitting removed for clarity -->
     </div>
 
     <script id="viewer-vertex-shader" type="x-shader/x-vertex">
       #version 300 es
-      in vec4 aPosition; in vec3 aNormal; out vec3 N,L,E; uniform mat4 modelViewMatrix, projectionMatrix; uniform mat3 uNormalMatrix; uniform vec4 uLightPosition; void main(){ vec3 pos=(modelViewMatrix*aPosition).xyz; L=(uLightPosition.w==0.0)?normalize(uLightPosition.xyz):normalize(uLightPosition.xyz-pos); E=-normalize(pos); N=normalize(uNormalMatrix*aNormal); gl_Position=projectionMatrix*modelViewMatrix*aPosition; }
+      in vec4 aPosition;
+      in vec3 aNormal;
+      in vec2 aTexCoord;
+
+      out vec3 vN, vL, vE;
+      out vec2 vTexCoord;
+
+      uniform mat4 modelViewMatrix;
+      uniform mat4 projectionMatrix;
+      uniform mat3 uNormalMatrix;
+      uniform vec4 uLightPosition;
+
+      void main() {
+        vec3 pos = (modelViewMatrix * aPosition).xyz;
+
+        if (uLightPosition.w == 0.0) {
+          vL = normalize(uLightPosition.xyz);
+        } else {
+          vL = normalize(uLightPosition.xyz - pos);
+        }
+
+        vE = -normalize(pos);
+        vN = normalize(uNormalMatrix * aNormal);
+        vTexCoord = aTexCoord;
+
+        gl_Position = projectionMatrix * modelViewMatrix * aPosition;
+      }
     </script>
+
     <script id="viewer-fragment-shader" type="x-shader/x-fragment">
       #version 300 es
-      precision mediump float; in vec3 N,L,E; uniform vec4 uAmbientProduct,uDiffuseProduct,uSpecularProduct; uniform float uShininess,uLightIntensity; out vec4 fColor; void main(){ vec3 H=normalize(L+E); vec4 ambient=uAmbientProduct*uLightIntensity; float Kd=max(dot(L,N),0.0); vec4 diffuse=Kd*uDiffuseProduct*uLightIntensity; float Ks=pow(max(dot(N,H),0.0),uShininess); vec4 specular=Ks*uSpecularProduct*uLightIntensity; if(dot(L,N)<0.0) specular=vec4(0,0,0,1); fColor=ambient+diffuse+specular; fColor.a=1.0; }
+      precision mediump float;
+      in vec3 vN, vL, vE;
+      in vec2 vTexCoord;
+
+      uniform vec4 uAmbientProduct;
+      uniform vec4 uDiffuseProduct;
+      uniform vec4 uSpecularProduct;
+      uniform float uShininess;
+      uniform float uLightIntensity;
+      uniform float uAmbientIntensity;
+      uniform float uDiffuseIntensity;
+      uniform float uSpecularIntensity;
+      uniform float uLightingEnabled;
+      uniform vec4 uBaseColor;
+      uniform sampler2D uTextureMap;
+      uniform float uTextureEnabled;
+
+      out vec4 fColor;
+
+      void main() {
+        vec3 N = normalize(vN);
+        vec3 L = normalize(vL);
+        vec3 E = normalize(vE);
+        vec3 H = normalize(L + E);
+
+        vec4 ambient = uAmbientProduct * (uLightIntensity * uAmbientIntensity);
+        float Kd = max(dot(L, N), 0.0);
+        vec4 diffuse = Kd * uDiffuseProduct * (uLightIntensity * uDiffuseIntensity);
+        float Ks = pow(max(dot(N, H), 0.0), uShininess);
+        vec4 specular = Ks * uSpecularProduct * (uLightIntensity * uSpecularIntensity);
+        if (dot(L, N) < 0.0) {
+          specular = vec4(0.0, 0.0, 0.0, 1.0);
+        }
+
+        vec4 litColor = ambient + diffuse + specular;
+        litColor.a = 1.0;
+
+        // Start with base color (part color * tint), or lit color if lighting is on
+        vec4 base = mix(uBaseColor, litColor, uLightingEnabled);
+
+        // Apply texture
+        vec4 texColor = texture(uTextureMap, vTexCoord);
+        fColor = mix(base, base * texColor, uTextureEnabled);
+        fColor.a = 1.0;
+      }
     </script>
+
     <script id="viewer-vertex-shader-vertex" type="x-shader/x-vertex">
       #version 300 es
-      in vec4 aPosition; in vec3 aNormal; out vec4 vColor; uniform mat4 modelViewMatrix, projectionMatrix; uniform mat3 uNormalMatrix; uniform vec4 uLightPosition; uniform vec4 uAmbientProduct,uDiffuseProduct,uSpecularProduct; uniform float uShininess,uLightIntensity; void main(){ vec3 pos=(modelViewMatrix*aPosition).xyz; vec3 L=(uLightPosition.w==0.0)?normalize(uLightPosition.xyz):normalize(uLightPosition.xyz-pos); vec3 E=-normalize(pos); vec3 N=normalize(uNormalMatrix*aNormal); vec3 H=normalize(L+E); vec4 ambient=uAmbientProduct*uLightIntensity; float Kd=max(dot(L,N),0.0); vec4 diffuse=Kd*uDiffuseProduct*uLightIntensity; float Ks=pow(max(dot(N,H),0.0),uShininess); vec4 specular=Ks*uSpecularProduct*uLightIntensity; if(dot(L,N)<0.0) specular=vec4(0,0,0,1); vColor=ambient+diffuse+specular; vColor.a=1.0; gl_Position=projectionMatrix*modelViewMatrix*aPosition; }
+      in vec4 aPosition;
+      in vec3 aNormal;
+      in vec2 aTexCoord;
+
+      out vec4 vColor;
+      out vec2 vTexCoord;
+
+      uniform mat4 modelViewMatrix;
+      uniform mat4 projectionMatrix;
+      uniform mat3 uNormalMatrix;
+      uniform vec4 uLightPosition;
+
+      uniform vec4 uAmbientProduct;
+      uniform vec4 uDiffuseProduct;
+      uniform vec4 uSpecularProduct;
+      uniform float uShininess;
+      uniform float uLightIntensity;
+      uniform float uAmbientIntensity;
+      uniform float uDiffuseIntensity;
+      uniform float uSpecularIntensity;
+      uniform float uLightingEnabled;
+      uniform vec4 uBaseColor;
+
+      void main() {
+        vec3 pos = (modelViewMatrix * aPosition).xyz;
+        vec3 L = (uLightPosition.w == 0.0)
+                  ? normalize(uLightPosition.xyz)
+                  : normalize(uLightPosition.xyz - pos);
+        vec3 E = -normalize(pos);
+        vec3 N = normalize(uNormalMatrix * aNormal);
+        vec3 H = normalize(L + E);
+
+        vec4 ambient = uAmbientProduct * (uLightIntensity * uAmbientIntensity);
+        float Kd = max(dot(L, N), 0.0);
+        vec4 diffuse = Kd * uDiffuseProduct * (uLightIntensity * uDiffuseIntensity);
+        float Ks = pow(max(dot(N, H), 0.0), uShininess);
+        vec4 specular = Ks * uSpecularProduct * (uLightIntensity * uSpecularIntensity);
+        if (dot(L, N) < 0.0) {
+          specular = vec4(0.0, 0.0, 0.0, 1.0);
+        }
+        vec4 litColor = ambient + diffuse + specular;
+        litColor.a = 1.0;
+
+        vColor = mix(uBaseColor, litColor, uLightingEnabled);
+        vTexCoord = aTexCoord;
+        gl_Position = projectionMatrix * modelViewMatrix * aPosition;
+      }
     </script>
+
     <script id="viewer-fragment-shader-vertex" type="x-shader/x-fragment">
       #version 300 es
-      precision mediump float; in vec4 vColor; out vec4 fColor; void main(){ fColor=vColor; }
+      precision mediump float;
+      in vec4 vColor;
+      in vec2 vTexCoord;
+
+      uniform sampler2D uTextureMap;
+      uniform float uTextureEnabled;
+
+      out vec4 fColor;
+
+      void main() {
+        vec4 texColor = texture(uTextureMap, vTexCoord);
+        fColor = mix(vColor, vColor * texColor, uTextureEnabled);
+        fColor.a = 1.0;
+      }
     </script>
 
     <script src="../MVnew.js"></script>
     <script src="../initShaders.js"></script>
     <script src="./utils/ac.js"></script>
     <script type="module" src="./main.js"></script>
+
+    <script>
+      // This inline script handles the app reload logic
+      const projectionRadios = document.querySelectorAll(
+        'input[name="projection"]'
+      );
+      const lightingRadios = document.querySelectorAll(
+        'input[name="lighting-mode"]'
+      );
+      const currentProjectionEl = document.getElementById("current-projection");
+      const currentLightingEl = document.getElementById("current-lighting");
+
+      let currentApp = null;
+
+      function getProjectionMode() {
+        return document.querySelector('input[name="projection"]:checked').value;
+      }
+
+      function getLightingMode() {
+        return document.querySelector('input[name="lighting-mode"]:checked')
+          .value;
+      }
+
+      function reloadApp() {
+        // Stop the old animation loop if it exists
+        if (currentApp && currentApp.stop) {
+          currentApp.stop();
+        }
+        
+        // Clear and recreate canvas to reset GL context
+        const canvasContainer = document.getElementById("canvas-container");
+        canvasContainer.innerHTML =
+          '<canvas id="gl-canvas" width="800" height="500"></canvas>';
+
+        const projectionType = getProjectionMode();
+        const lightingMode = getLightingMode();
+        
+        currentProjectionEl.textContent =
+          projectionType === "perspective" ? "Perspective" : "Orthographic";
+        currentLightingEl.textContent =
+          lightingMode === "fragment" ? "Fragment" : "Vertex";
+
+        // Run the app (from main.js)
+        currentApp = runApp_ACViewer(projectionType, lightingMode);
+      }
+
+      function setCameraPosition(preset) {
+        if (currentApp && currentApp.setCameraPosition) {
+          currentApp.setCameraPosition(preset);
+        }
+      }
+
+      projectionRadios.forEach((radio) => {
+        radio.addEventListener("change", reloadApp);
+      });
+
+      lightingRadios.forEach((radio) => {
+        radio.addEventListener("change", reloadApp);
+      });
+
+      document.getElementById("btn-camera-front").onclick = () =>
+        setCameraPosition("front");
+      document.getElementById("btn-camera-side").onclick = () =>
+        setCameraPosition("side");
+      document.getElementById("btn-camera-top").onclick = () =>
+        setCameraPosition("top");
+      document.getElementById("btn-camera-isometric").onclick = () =>
+        setCameraPosition("isometric");
+
+      // Initial load
+      window.onload = () => {
+        reloadApp();
+      };
+    </script>
   </body>
 </html>
