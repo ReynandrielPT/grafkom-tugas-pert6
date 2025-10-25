@@ -38,7 +38,7 @@
       parts,
       mult(
         C,
-        mult(translate(0, bh / 2 - panelT / 2, 0), scale(bw, panelT, bd))
+        mult(translate(0, bh / 2.2 - panelT / 2, 0), scale(bw, panelT, bd))
       ),
       bodyCol
     );
@@ -46,7 +46,7 @@
       parts,
       mult(
         C,
-        mult(translate(0, -bh / 2 + panelT / 2, 0), scale(bw, panelT, bd))
+        mult(translate(0, -bh / 2.4 + panelT / 2, 0), scale(bw, panelT, bd))
       ),
       bodyCol
     );
@@ -56,7 +56,7 @@
         C,
         mult(
           translate(-bw / 2 + panelT / 2, 0, 0),
-          scale(panelT, bh - 2 * panelT, bd)
+          scale(panelT, bh - 3 * panelT, bd)
         )
       ),
       bodyCol
@@ -67,7 +67,7 @@
         C,
         mult(
           translate(bw / 2 - panelT / 2, 0, 0),
-          scale(panelT, bh - 2 * panelT, bd)
+          scale(panelT, bh - 3 * panelT, bd)
         )
       ),
       bodyCol
