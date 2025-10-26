@@ -63,12 +63,68 @@ function runApp_ClockViewer(
     enabled: true,
   };
 
-  function fallbackCreateClockModel() {
-    const parts = [];
-    const caseCol = vec4(0.93, 0.95, 0.98, 1);
+  function createNode(transform, render, sibling, child) {
+    return {
+      transform,
+      render,
+      sibling,
+      child,
+    };
+  }
+
+  function resolveMaterialColor(tag, defaultColor) {
+    if (tag === "wall") return materialColors.wall;
+    if (tag === "clockRimSeg" || tag === "innerRimCol")
+      return materialColors.rim;
+    if (tag === "clockFace" || tag === "clockBoard")
+      return materialColors.face;
+    if (
+      tag === "clockTick" ||
+      tag === "clockMinuteTick" ||
+      tag === "clockNumber"
+    )
+      return materialColors.ticks;
+    if (tag === "clockHandHour" || tag === "clockHandMinute")
+      return materialColors.hands;
+    if (tag === "clockHandSecond") return materialColors.secondHand;
+    return defaultColor ? mult(materialColors.default, defaultColor) : materialColors.default;
+  }
+
+  function renderNodeCube(node, hasTexture) {
+    const renderInfo = node.render || {};
+    const tag = renderInfo.tag || null;
+    const baseColor = renderInfo.color || vec4(1.0, 1.0, 1.0, 1.0);
+    const finalPartColor = resolveMaterialColor(tag, baseColor);
+    const materialDiffuse = finalPartColor;
+    const materialAmbient = scale(0.2, materialDiffuse);
+    const materialSpecular = vec4(1.0, 1.0, 1.0, 1.0);
+
+    const ambientProduct = mult(light.ambient, materialAmbient);
+    const diffuseProduct = mult(light.diffuse, materialDiffuse);
+    const specularProduct = mult(light.specular, materialSpecular);
+    gl.uniform4fv(ambientProdLoc, flatten(ambientProduct));
+    gl.uniform4fv(diffuseProdLoc, flatten(diffuseProduct));
+    gl.uniform4fv(specularProdLoc, flatten(specularProduct));
+    gl.uniform4fv(baseColorLoc, flatten(materialDiffuse));
+
+    if (textureEnabledLoc) {
+      const useWallTexture = hasTexture && tag === "wall";
+      gl.uniform1f(textureEnabledLoc, useWallTexture ? 1.0 : 0.0);
+    }
+
+    gl.drawArrays(gl.TRIANGLES, 0, numPositions);
+  }
+
+  let clockGraph = null;
+  const handAngles = { hour: 0, minute: 0, second: 0 };
+
+  function buildFallbackClockGraph() {
+    const wallCol = vec4(0.92, 0.93, 0.96, 1);
     const faceCol = vec4(0.98, 0.985, 0.99, 1);
     const tickCol = vec4(0.18, 0.2, 0.22, 1);
-    const secondCol = vec4(0.85, 0.1, 0.12, 1);
+
+    const roomTranslate = translate(0, 0, -1.4);
+    const wallTransform = mult(roomTranslate, scale(12, 7, 0.2));
 
     const C = translate(0, 1.25, -0.9);
     const w = 2.6,
@@ -76,81 +132,248 @@ function runApp_ClockViewer(
       d = 0.5,
       faceT = 0.05;
     const frontZ = d / 2 - faceT / 2;
-    parts.push({
-      transform: mult(translate(0, 0, -1.4), scale(12, 7, 0.2)),
-      color: vec4(0.92, 0.93, 0.96, 1),
-      tag: "wall",
-    });
-    parts.push({
-      transform: mult(C, scale(w, h, d)),
-      color: caseCol,
-      tag: "clockRimSeg",
-    });
-    parts.push({
-      transform: mult(
-        C,
-        mult(translate(0, 0, frontZ), scale(w * 0.92, h * 0.92, faceT))
-      ),
-      color: faceCol,
-      tag: "clockFace",
-    });
-    const tickL = 0.18 * h,
-      tickW = 0.04 * w,
-      tickD = 0.06;
+    const boardTransform = mult(
+      C,
+      mult(translate(0, 0, frontZ), scale(w * 0.92, h * 0.92, faceT))
+    );
+
+    const tickL = 0.18 * h;
+    const tickW = 0.04 * w;
+    const tickD = 0.06;
     const tickR = Math.min(w, h) * 0.42;
-    for (let i = 0; i < 12; i++) {
-      const Rz = rotateZ(i * 30);
+    const tickAngles = [0, 120, 240];
+    const tickTransforms = tickAngles.map((angle) => {
+      const Rz = rotateZ(angle);
       const T = translate(0, tickR, frontZ + faceT / 2 + tickD / 2);
       const S = scale(tickW, tickL, tickD);
-      parts.push({
-        transform: mult(C, mult(Rz, mult(T, S))),
-        color: tickCol,
-        tag: "clockTick",
-      });
+      return mult(C, mult(Rz, mult(T, S)));
+    });
+
+    const nodes = [];
+    const WALL = 0;
+    const BOARD = 1;
+    const TICK1 = 2;
+    const TICK2 = 3;
+    const TICK3 = 4;
+
+    const worldTransforms = [];
+
+    nodes[WALL] = createNode(
+      wallTransform,
+      { tag: "wall", color: wallCol },
+      null,
+      BOARD
+    );
+    worldTransforms[WALL] = wallTransform;
+
+    nodes[BOARD] = createNode(
+      boardTransform,
+      { tag: "clockBoard", color: faceCol },
+      null,
+      TICK1
+    );
+    worldTransforms[BOARD] = boardTransform;
+
+    nodes[TICK1] = createNode(
+      tickTransforms[0],
+      { tag: "clockTick", color: tickCol },
+      TICK2,
+      null
+    );
+    worldTransforms[TICK1] = tickTransforms[0];
+
+    nodes[TICK2] = createNode(
+      tickTransforms[1],
+      { tag: "clockTick", color: tickCol },
+      TICK3,
+      null
+    );
+    worldTransforms[TICK2] = tickTransforms[1];
+
+    nodes[TICK3] = createNode(
+      tickTransforms[2],
+      { tag: "clockTick", color: tickCol },
+      null,
+      null
+    );
+    worldTransforms[TICK3] = tickTransforms[2];
+
+    applyLocalTransforms(nodes, WALL, worldTransforms);
+
+    return {
+      nodes,
+      rootId: WALL,
+    };
+  }
+
+  function convertPartsToGraph(parts) {
+    if (!Array.isArray(parts) || parts.length === 0) return null;
+
+    const worldTransforms = parts.map((part) => part.transform);
+    const nodes = parts.map((part) => {
+      const renderData = {
+        tag: part.tag || null,
+        color: part.color || vec4(1.0, 1.0, 1.0, 1.0),
+      };
+      if (part.pivot)
+        renderData.pivot = [part.pivot[0], part.pivot[1], part.pivot[2]];
+      return createNode(part.transform, renderData, null, null);
+    });
+
+    const wallIndex = parts.findIndex((p) => p.tag === "wall");
+    if (wallIndex === -1) return null;
+
+    const boardIndex = parts.findIndex(
+      (p) => p.tag === "clockBoard" || p.tag === "clockFace"
+    );
+    const tickIndices = parts
+      .map((p, idx) => (p.tag === "clockTick" ? idx : -1))
+      .filter((idx) => idx !== -1);
+    const childTickIndices = tickIndices.slice(0, 3);
+
+    const used = new Set([wallIndex]);
+    if (boardIndex !== -1) used.add(boardIndex);
+    childTickIndices.forEach((idx) => used.add(idx));
+
+    if (boardIndex !== -1) {
+      nodes[wallIndex].child = boardIndex;
+      if (childTickIndices.length > 0) {
+        nodes[boardIndex].child = childTickIndices[0];
+        for (let i = 0; i < childTickIndices.length - 1; i++) {
+          nodes[childTickIndices[i]].sibling = childTickIndices[i + 1];
+        }
+      }
     }
-    const handDepth = 0.06;
-    const hubZ = frontZ + faceT / 2 + handDepth / 2 + 0.001;
-    const pivot = [0, 0, hubZ];
-    const hrLen = 0.55 * h,
-      hrW = 0.08 * w;
-    let hourHandLocal = mult(
-      translate(0, hrLen / 2 - 0.05 * h, 0),
-      scale(hrW, hrLen, handDepth)
-    );
-    let hourHand = mult(C, mult(translate(0, 0, hubZ), hourHandLocal));
-    parts.push({
-      transform: hourHand,
-      color: tickCol,
-      tag: "clockHandHour",
-      pivot,
-    });
-    const mnLen = 0.75 * h,
-      mnW = 0.06 * w;
-    let minuteHandLocal = mult(
-      translate(0, mnLen / 2 - 0.05 * h, 0),
-      scale(mnW, mnLen, handDepth)
-    );
-    let minuteHand = mult(C, mult(translate(0, 0, hubZ), minuteHandLocal));
-    parts.push({
-      transform: minuteHand,
-      color: tickCol,
-      tag: "clockHandMinute",
-      pivot,
-    });
-    const scLen = 0.8 * h,
-      scW = 0.03 * w;
-    let secondHandLocal = mult(
-      translate(0, scLen / 2 - 0.05 * h, 0),
-      scale(scW, scLen, handDepth)
-    );
-    let secondHand = mult(C, mult(translate(0, 0, hubZ), secondHandLocal));
-    parts.push({
-      transform: secondHand,
-      color: secondCol,
-      tag: "clockHandSecond",
-      pivot,
-    });
-    return parts;
+
+    const remaining = [];
+    for (let i = 0; i < nodes.length; i++) {
+      if (!used.has(i)) remaining.push(i);
+    }
+
+    let firstChild = nodes[wallIndex].child ?? null;
+    if (firstChild === null && remaining.length > 0) {
+      firstChild = remaining.shift();
+      nodes[wallIndex].child = firstChild;
+    }
+
+    let siblingCursor = firstChild;
+    if (boardIndex !== -1 && remaining.length > 0) {
+      const nextIdx = remaining.shift();
+      nodes[boardIndex].sibling = nextIdx;
+      siblingCursor = nextIdx;
+    }
+
+    while (remaining.length > 0 && siblingCursor !== null) {
+      const nextIdx = remaining.shift();
+      nodes[siblingCursor].sibling = nextIdx;
+      siblingCursor = nextIdx;
+    }
+
+    applyLocalTransforms(nodes, wallIndex, worldTransforms);
+
+    return {
+      nodes,
+      rootId: wallIndex,
+    };
+  }
+
+  function applyLocalTransforms(nodes, rootId, worldTransforms) {
+    if (!nodes || nodes.length === 0) return;
+    const visited = new Set();
+
+    function convertPivot(renderInfo, parentInverse) {
+      if (!renderInfo || !renderInfo.pivot || !parentInverse) return;
+      const pivot = renderInfo.pivot;
+      const pivotVec = vec4(pivot[0], pivot[1], pivot[2], 1.0);
+      const pivotParent = mult(parentInverse, pivotVec);
+      renderInfo.pivot = [pivotParent[0], pivotParent[1], pivotParent[2]];
+    }
+
+    function visit(nodeId, parentId) {
+      if (nodeId === null || nodeId === undefined) return;
+      if (visited.has(nodeId)) return;
+      visited.add(nodeId);
+
+      const worldTransform = worldTransforms[nodeId] || mat4();
+      if (parentId === null) {
+        nodes[nodeId].transform = worldTransform;
+      } else {
+        const parentWorld = worldTransforms[parentId] || mat4();
+        const parentInverse = inverse(parentWorld);
+        nodes[nodeId].transform = mult(parentInverse, worldTransform);
+        convertPivot(nodes[nodeId].render, parentInverse);
+      }
+
+      let childId = nodes[nodeId].child;
+      while (childId !== null && childId !== undefined) {
+        visit(childId, nodeId);
+        childId = nodes[childId].sibling;
+      }
+    }
+
+    visit(rootId, null);
+  }
+
+  function buildSceneGraph() {
+    if (typeof window.createClockModel === "function") {
+      const result = window.createClockModel({ createNode });
+      if (result && Array.isArray(result.nodes) && result.nodes.length > 0)
+        return result;
+      if (Array.isArray(result) && result.length > 0) {
+        const graph = convertPartsToGraph(result);
+        if (graph) return graph;
+      }
+    }
+    return buildFallbackClockGraph();
+  }
+
+  function traverseNodeGraph(nodes, nodeId, parentMatrix, viewMatrix) {
+    let currentId = nodeId;
+    while (currentId !== null && currentId !== undefined) {
+      const node = nodes[currentId];
+      if (!node) break;
+
+      let localMatrix = node.transform || mat4();
+      const renderInfo = node.render || {};
+      const tag = renderInfo.tag || null;
+
+      if (renderInfo.pivot && tag) {
+        let angle = null;
+        if (tag === "clockHandHour") angle = handAngles.hour;
+        else if (tag === "clockHandMinute") angle = handAngles.minute;
+        else if (tag === "clockHandSecond") angle = handAngles.second;
+        if (angle !== null) {
+          const [px, py, pz] = renderInfo.pivot;
+          const Tp = translate(px, py, pz);
+          const Tm = translate(-px, -py, -pz);
+          localMatrix = mult(Tp, mult(rotateZ(angle), mult(Tm, node.transform)));
+        }
+      }
+
+      const worldMatrix = mult(parentMatrix, localMatrix);
+      const modelView = mult(viewMatrix, worldMatrix);
+      gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelView));
+      const nMat = normalMatrix(modelView, true);
+      gl.uniformMatrix3fv(normalMatrixLoc, false, flatten(nMat));
+
+      renderNodeCube(node, textureEnabled > 0.0);
+
+      if (node.child !== null && node.child !== undefined) {
+        traverseNodeGraph(nodes, node.child, worldMatrix, viewMatrix);
+      }
+
+      currentId = node.sibling;
+    }
+  }
+
+  function renderSceneGraph(viewMatrix, rootMatrix) {
+    if (!clockGraph || !clockGraph.nodes || clockGraph.nodes.length === 0)
+      return;
+    const rootId =
+      clockGraph.rootId !== undefined && clockGraph.rootId !== null
+        ? clockGraph.rootId
+        : 0;
+    traverseNodeGraph(clockGraph.nodes, rootId, rootMatrix || mat4(), viewMatrix);
   }
 
   function initUnitCube() {
@@ -699,10 +922,6 @@ function runApp_ClockViewer(
       gl.uniform1i(textureSamplerLoc, 0);
     }
 
-    const objectParts = window.createClockModel
-      ? window.createClockModel({})
-      : fallbackCreateClockModel();
-
     const Rspin = rotateY(spinAngle);
 
     let hours, minutes, seconds;
@@ -722,73 +941,19 @@ function runApp_ClockViewer(
     const minDeg = -6 * (minutes + seconds / 60);
     const hourDeg = -30 * (hours + minutes / 60 + seconds / 3600);
 
-    for (let i = 0; i < objectParts.length; i++) {
-      let M_part_base = objectParts[i].transform;
-      let M_rotated = M_part_base;
+    handAngles.hour = hourDeg;
+    handAngles.minute = minDeg;
+    handAngles.second = secDeg;
 
-      if (objectParts[i].pivot && objectParts[i].tag) {
-        let ang = null;
-        if (objectParts[i].tag === "clockHandHour") ang = hourDeg;
-        else if (objectParts[i].tag === "clockHandMinute") ang = minDeg;
-        else if (objectParts[i].tag === "clockHandSecond") ang = secDeg;
-
-        if (ang !== null) {
-          const pv = objectParts[i].pivot;
-          const Tp = translate(pv[0], pv[1], pv[2]);
-          const Tm = translate(-pv[0], -pv[1], -pv[2]);
-          M_rotated = mult(Tp, mult(rotateZ(ang), mult(Tm, M_part_base)));
-        }
-      }
-
-      modelViewMatrix = mult(V, mult(Rspin, M_rotated));
-
-      gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
-      const nMat = normalMatrix(modelViewMatrix, true);
-      gl.uniformMatrix3fv(normalMatrixLoc, false, flatten(nMat));
-
-      let finalPartColor;
-      const tag = objectParts[i].tag;
-
-      if (tag === "wall") {
-        finalPartColor = materialColors.wall;
-      } else if (tag === "clockRimSeg" || tag === "innerRimCol") {
-        finalPartColor = materialColors.rim;
-      } else if (tag === "clockFace") {
-        finalPartColor = materialColors.face;
-      } else if (
-        tag === "clockTick" ||
-        tag === "clockMinuteTick" ||
-        tag === "clockNumber"
-      ) {
-        finalPartColor = materialColors.ticks;
-      } else if (tag === "clockHandHour" || tag === "clockHandMinute") {
-        finalPartColor = materialColors.hands;
-      } else if (tag === "clockHandSecond") {
-        finalPartColor = materialColors.secondHand;
-      } else {
-        finalPartColor = mult(materialColors.default, objectParts[i].color);
-      }
-
-      const materialDiffuse = finalPartColor;
-      const materialAmbient = scale(0.2, materialDiffuse);
-      const materialSpecular = vec4(1.0, 1.0, 1.0, 1.0);
-
-      const ambientProduct = mult(light.ambient, materialAmbient);
-      const diffuseProduct = mult(light.diffuse, materialDiffuse);
-      const specularProduct = mult(light.specular, materialSpecular);
-      gl.uniform4fv(ambientProdLoc, flatten(ambientProduct));
-      gl.uniform4fv(diffuseProdLoc, flatten(diffuseProduct));
-      gl.uniform4fv(specularProdLoc, flatten(specularProduct));
-      gl.uniform4fv(baseColorLoc, flatten(materialDiffuse));
-
-      gl.drawArrays(gl.TRIANGLES, 0, numPositions);
-    }
+    if (!clockGraph) clockGraph = buildSceneGraph();
+    renderSceneGraph(V, Rspin);
     animationId = requestAnimationFrame(render);
   }
 
   setupGL();
   hookUI();
   applyTextureSelection();
+  clockGraph = buildSceneGraph();
   render();
 
   return {

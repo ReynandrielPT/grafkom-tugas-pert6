@@ -210,7 +210,11 @@
     addNumberAt(-90, "3");
     addNumberAt(180, "6");
     addNumberAt(90, "9");
-    const hrLen = 0.55 * faceR;
+    
+    const chapterRingRadius = faceR * 0.88;
+    const maxHandRadius = chapterRingRadius - 0.05 * s;
+    
+    const hrLen = maxHandRadius * 0.50;
     const hrW = 0.14 * rimT;
     let hourHand = mult(
       translate(0, hrLen / 2, hubZ),
@@ -220,14 +224,14 @@
     part(parts, hourHand, handCol, "clockHandHour");
     parts[parts.length - 1].pivot = pivot;
     let hourTip = mult(
-      translate(0, hrLen + 0.08 * faceR, hubZ),
-      scale(hrW * 0.6, 0.16 * faceR, handDepth)
+      translate(0, hrLen + 0.05 * hrLen, hubZ),
+      scale(hrW * 0.6, 0.10 * hrLen, handDepth)
     );
     hourTip = mult(C, hourTip);
     part(parts, hourTip, handCol, "clockHandHour");
     parts[parts.length - 1].pivot = pivot;
 
-    const mnLen = 0.78 * faceR;
+    const mnLen = maxHandRadius * 0.75;
     const mnW = 0.11 * rimT;
     let minuteHand = mult(
       translate(0, mnLen / 2, hubZ),
@@ -237,14 +241,14 @@
     part(parts, minuteHand, handCol, "clockHandMinute");
     parts[parts.length - 1].pivot = pivot;
     let minuteTip = mult(
-      translate(0, mnLen + 0.08 * faceR, hubZ),
-      scale(mnW * 0.6, 0.16 * faceR, handDepth)
+      translate(0, mnLen + 0.05 * mnLen, hubZ),
+      scale(mnW * 0.6, 0.10 * mnLen, handDepth)
     );
     minuteTip = mult(C, minuteTip);
     part(parts, minuteTip, handCol, "clockHandMinute");
     parts[parts.length - 1].pivot = pivot;
 
-    const scLen = 0.86 * faceR;
+    const scLen = maxHandRadius * 0.85;
     const scW = 0.06 * rimT;
     let secondHand = mult(
       translate(0, scLen / 2, hubZ),
@@ -254,8 +258,8 @@
     part(parts, secondHand, secondCol, "clockHandSecond");
     parts[parts.length - 1].pivot = pivot;
     let secondTail = mult(
-      translate(0, -0.18 * faceR, hubZ),
-      scale(scW * 1.2, 0.22 * faceR, handDepth)
+      translate(0, -0.15 * scLen, hubZ),
+      scale(scW * 1.2, 0.20 * scLen, handDepth)
     );
     secondTail = mult(C, secondTail);
     part(parts, secondTail, secondCol, "clockHandSecond");
