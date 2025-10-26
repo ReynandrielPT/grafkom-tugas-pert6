@@ -15,11 +15,11 @@
         --bg-end: #eef1f7;
         --panel-bg: #ffffff;
         --panel-border: #e8eaf1;
-        --text: #1f2937; /* gray-800 */
-        --muted: #6b7280; /* gray-500 */
-        --accent: #7c3aed; /* violet-600 */
-        --accent-hover: #6d28d9; /* violet-700 */
-        --accent-soft: #ede9fe; /* violet-50 */
+  --text: #1f2937;
+  --muted: #6b7280;
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --accent-soft: #ede9fe;
         --shadow: 0 10px 25px rgba(16, 24, 40, 0.08),
           0 2px 6px rgba(16, 24, 40, 0.06);
       }
@@ -665,7 +665,6 @@
     <script type="module" src="./main.js"></script>
 
     <script>
-      // This inline script handles the app reload logic
       const projectionRadios = document.querySelectorAll(
         'input[name="projection"]'
       );
@@ -703,7 +702,6 @@
         currentLightingEl.textContent =
           lightingMode === "fragment" ? "Fragment" : "Vertex";
 
-        // ---MODIFIED HERE---
         currentApp = runApp_ClockViewer(projectionType, lightingMode);
       }
 

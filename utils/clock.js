@@ -8,7 +8,6 @@
     const [cx, cy, cz] = center;
     const C = translate(cx, cy, cz);
 
-    // Colors
     const rimCol = vec4(0.88, 0.9, 0.94, 1);
     const innerRimCol = vec4(0.82, 0.84, 0.88, 1);
     const faceCol = vec4(0.985, 0.99, 1.0, 1);
@@ -17,14 +16,12 @@
     const handCol = vec4(0.1, 0.11, 0.12, 1);
     const secondCol = vec4(0.1, 0.12, 0.14, 1);
 
-    // Dimensions (round wall clock)
-    const R = 1.35 * s; // overall radius
-    const rimT = 0.18 * s; // rim thickness (radial)
-    const bodyD = 0.5 * s; // overall depth
-    const faceT = 0.05 * s; // face plate thickness
+    const R = 1.35 * s;
+    const rimT = 0.18 * s;
+    const bodyD = 0.5 * s;
+    const faceT = 0.05 * s;
     const frontZ = bodyD / 2 - faceT / 2;
 
-    // Helper to add a circular ring made of N tangent blocks
     function addRing(radius, thickness, depth, z, segments, color) {
       const N = Math.max(8, Math.floor(segments));
       for (let i = 0; i < N; i++) {
@@ -36,7 +33,6 @@
         part(parts, mult(C, mult(Rz, mult(T, S))), color, "clockRimSeg");
       }
     }
-    // Helper to add a filled disc via rotated spokes
     function addDisc(radius, depth, z, segments, color, tag) {
       const N = Math.max(8, Math.floor(segments));
       for (let i = 0; i < N; i++) {
@@ -49,9 +45,7 @@
       }
     }
 
-    // Outer bezel rim (slightly proud of face)
     addRing(R, rimT, bodyD, 0, 64, rimCol);
-    // Inner rim (step)
     addRing(
       R - rimT * 0.7,
       rimT * 0.35,
@@ -61,25 +55,22 @@
       innerRimCol
     );
 
-    // Face disc recessed slightly behind inner rim
     const faceR = R - rimT - 0.04 * s;
     addDisc(faceR, faceT, frontZ - 0.005 * s, 72, faceCol, "clockFace");
 
-    // Hour ticks (12) — thicker at 12/3/6/9
     const tickL = 0.16 * R;
     const tickW = 0.06 * rimT;
     const tickD = 0.06 * s;
     const tickR = faceR - tickL / 2 - 0.02 * s;
     for (let i = 0; i < 12; i++) {
       const deg = i * 30;
-      const bold = i % 3 === 0 ? 1.5 : 1.0; // bold at 12,3,6,9
+  const bold = i % 3 === 0 ? 1.5 : 1.0;
       const Rz = rotateZ(deg);
       const T = translate(0, tickR, frontZ + faceT / 2 + tickD / 2);
       const S = scale(tickW * bold, tickL, tickD);
       part(parts, mult(C, mult(Rz, mult(T, S))), tickCol, "clockTick");
     }
 
-    // Minute ticks (lighter, smaller; skip where hour ticks sit)
     const mTickL = 0.075 * R;
     const mTickW = 0.5 * tickW;
     const mTickD = 0.05 * s;
@@ -98,8 +89,6 @@
       );
     }
 
-    // Extra face details: chapter ring, inner shadow ring, subtle bezel highlight, and screws
-    // Chapter ring (thin ring inside ticks)
     const chapterRingR = faceR * 0.88;
     const chapterRingT = 0.03 * R;
     const chapterRingD = 0.02 * s;
@@ -112,7 +101,6 @@
       vec4(0.94, 0.95, 0.98, 1)
     );
 
-    // Inner shadow ring near the inner edge of the face
     const innerShadowR = faceR * 0.96;
     const innerShadowT = 0.015 * R;
     const innerShadowD = 0.015 * s;
@@ -125,7 +113,6 @@
       vec4(0.85, 0.87, 0.9, 1)
     );
 
-    // Bezel highlight ring slightly above the face to hint at glass reflection
     const glassHiliteR = faceR + 0.015 * R;
     const glassHiliteT = 0.012 * R;
     const glassHiliteD = 0.012 * s;
@@ -138,7 +125,6 @@
       vec4(1.0, 1.0, 1.0, 1)
     );
 
-    // Decorative screw heads on bezel at 45°, 135°, 225°, 315°
     const screwCol = vec4(0.7, 0.72, 0.76, 1);
     const screwR = R - rimT * 0.45;
     const screwW = 0.06 * R;
@@ -153,13 +139,10 @@
       part(parts, mult(C, mult(Rz2, mult(T2, S2))), screwCol, "clockScrew");
     }
 
-    // Hands (neutral orientation pointing up at 12)
     const handDepth = 0.06 * s;
     const hubZ = frontZ + faceT / 2 + handDepth / 2 + 0.001 * s;
     const pivot = [cx + 0, cy + 0, cz + hubZ];
 
-    // Add numeric labels at 12, 3, 6, 9 positions
-    // Seven-segment style block digits built from rectangular segments
     const DIGITS = {
       0: ["a", "b", "c", "d", "e", "f"],
       1: ["b", "c"],
@@ -175,15 +158,13 @@
 
     function addDigitSegments(Mbase, digit, W, H, segT, depth, color) {
       const on = DIGITS[digit] || [];
-      const z = 0; // depth handled by Mbase translate
-      // Horizontal segments: a (top), g (middle), d (bottom)
+      const z = 0;
       const HSeg = [
         { k: "a", x: 0, y: H / 2 - segT / 2, w: W, h: segT },
         { k: "g", x: 0, y: 0, w: W, h: segT },
         { k: "d", x: 0, y: -H / 2 + segT / 2, w: W, h: segT },
       ];
-      // Vertical half-height segments
-      const vH = H / 2 - segT; // each vertical half segment height
+      const vH = H / 2 - segT;
       const VSeg = [
         { k: "f", x: -W / 2 + segT / 2, y: H / 4, w: segT, h: vH },
         { k: "b", x: +W / 2 - segT / 2, y: H / 4, w: segT, h: vH },
@@ -201,7 +182,6 @@
     }
 
     function addNumberAt(angleDeg, text) {
-      // Base transform at given clock angle, placed on face, but oriented upright
       const numDepth = 0.05 * s;
       const z = frontZ + faceT / 2 + numDepth / 2 + 0.001 * s;
       const numR = faceR - tickL - 0.05 * R;
@@ -211,29 +191,25 @@
       );
       const charH = 0.16 * R;
       const charW = 0.11 * R;
-      const segT = 0.09 * charH; // thickness of segments
+      const segT = 0.09 * charH;
       const gap = 0.08 * charW;
-      // Compute starting x offset to center the string
       const totalW = text.length * charW + (text.length - 1) * gap;
       let x0 = -totalW / 2 + charW / 2;
       for (let i = 0; i < text.length; i++) {
         const ch = text[i];
-        // Kerning: nudge the '1' in "12" slightly left for nicer spacing
         let dx = 0;
         if (text === "12" && i === 0) {
-          dx = -0.2 * charW; // slight left shift
+          dx = -0.2 * charW;
         }
         const Mch = mult(Maround, translate(x0 + i * (charW + gap) + dx, 0, 0));
         addDigitSegments(Mch, ch, charW, charH, segT, numDepth, tickCol);
       }
     }
 
-    // Place numerals
-    addNumberAt(0, "12"); // top
-    addNumberAt(-90, "3"); // right
-    addNumberAt(180, "6"); // bottom
-    addNumberAt(90, "9"); // left
-    // Hour hand (slightly shorter and wider)
+    addNumberAt(0, "12");
+    addNumberAt(-90, "3");
+    addNumberAt(180, "6");
+    addNumberAt(90, "9");
     const hrLen = 0.55 * faceR;
     const hrW = 0.14 * rimT;
     let hourHand = mult(
@@ -243,7 +219,6 @@
     hourHand = mult(C, hourHand);
     part(parts, hourHand, handCol, "clockHandHour");
     parts[parts.length - 1].pivot = pivot;
-    // Hour hand tip (narrower extension)
     let hourTip = mult(
       translate(0, hrLen + 0.08 * faceR, hubZ),
       scale(hrW * 0.6, 0.16 * faceR, handDepth)
@@ -252,7 +227,6 @@
     part(parts, hourTip, handCol, "clockHandHour");
     parts[parts.length - 1].pivot = pivot;
 
-    // Minute hand (longer, slimmer)
     const mnLen = 0.78 * faceR;
     const mnW = 0.11 * rimT;
     let minuteHand = mult(
@@ -262,7 +236,6 @@
     minuteHand = mult(C, minuteHand);
     part(parts, minuteHand, handCol, "clockHandMinute");
     parts[parts.length - 1].pivot = pivot;
-    // Minute tip
     let minuteTip = mult(
       translate(0, mnLen + 0.08 * faceR, hubZ),
       scale(mnW * 0.6, 0.16 * faceR, handDepth)
@@ -271,7 +244,6 @@
     part(parts, minuteTip, handCol, "clockHandMinute");
     parts[parts.length - 1].pivot = pivot;
 
-    // Second hand (thin, with counterweight)
     const scLen = 0.86 * faceR;
     const scW = 0.06 * rimT;
     let secondHand = mult(
@@ -281,7 +253,6 @@
     secondHand = mult(C, secondHand);
     part(parts, secondHand, secondCol, "clockHandSecond");
     parts[parts.length - 1].pivot = pivot;
-    // Counterweight
     let secondTail = mult(
       translate(0, -0.18 * faceR, hubZ),
       scale(scW * 1.2, 0.22 * faceR, handDepth)
@@ -290,7 +261,6 @@
     part(parts, secondTail, secondCol, "clockHandSecond");
     parts[parts.length - 1].pivot = pivot;
 
-    // Hub cap
     const hubR = 0.12 * R;
     addDisc(
       hubR,
