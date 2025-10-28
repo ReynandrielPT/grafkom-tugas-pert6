@@ -1,49 +1,56 @@
 "use strict";
 
-// Chair Viewer
-function runApp_ObjectViewer(
-  modelType = "chair",
-  useIBO = false,
+function runApp_ClockViewer(
   projectionType = "perspective",
-  lightingMode = "fragment" // 'fragment' (per-pixel) or 'vertex' (per-vertex)
+  lightingMode = "fragment"
 ) {
-  var canvas, gl, program, numPositions, numIndices;
+  let canvas, gl, program, numPositions;
+  let positions = [],
+    normals = [],
+    texCoords = [];
+  let modelViewMatrix, projectionMatrix;
+  let modelViewMatrixLoc, projectionMatrixLoc;
+  let normalMatrixLoc,
+    lightPosLoc,
+    shininessLoc,
+    ambientProdLoc,
+    diffuseProdLoc,
+    specularProdLoc,
+    lightIntensityLoc,
+    ambientIntensityLoc,
+    diffuseIntensityLoc,
+    specularIntensityLoc,
+    lightingEnabledLoc,
+    baseColorLoc;
 
-  var positions = [];
-  var normals = [];
-  var indices = [];
-  var objectParts = [];
-  var rotation = { x: -25, y: 35 },
-    translation = { x: 0, y: 0 };
-  var scaleValue = 0.7,
-    cameraDistance = 10.0;
-  var objectRotationMatrix = mat4();
-  var modelViewMatrix, projectionMatrix;
-  var modelViewMatrixLoc, projectionMatrixLoc;
-  var normalMatrixLoc, lightPosLoc, shininessLoc;
-  var ambientProdLoc, diffuseProdLoc, specularProdLoc;
-  var lightIntensityLoc;
-  var ambientIntensityLoc, diffuseIntensityLoc, specularIntensityLoc;
-  var lightingEnabledLoc, baseColorLoc;
-  var isDragging = false,
+  let rotation = { x: -8, y: 28 },
+    cameraDistance = 9.0;
+  let isDragging = false,
     lastMouseX,
     lastMouseY;
-  var currentProjectionType = projectionType;
-  var currentLightingMode = lightingMode;
+  let currentProjectionType = projectionType;
+  let currentLightingMode = lightingMode;
   let animationId = -1;
+  let lastTime = 0;
 
-  // Texture state
-  var textureEnabled = 0.0;
-  var textureSelect = "none";
-  var textureObject = null;
-  var textureSamplerLoc = null;
-  var textureEnabledLoc = null;
+  let playing = false;
+  let t_clock = 0;
+  let t_model = 0;
+  let speed = 2;
+  let acRotate = false;
+  let acRotateSpeed = 30;
+  let clkRealTime = false;
+  const simStartSec = 10 * 3600 + 10 * 60 + 0;
 
-  // Object tint (from UI color picker)
-  var materialTint = vec4(1.0, 1.0, 1.0, 1.0);
+  let textureEnabled = 0.0;
+  let textureSelect = "none";
+  let textureObject = null;
+  let textureSamplerLoc = null;
+  let textureEnabledLoc = null;
 
-  // Lighting state (controlled by UI)
-  var light = {
+  let materialColors = {};
+
+  let light = {
     ambient: vec4(0.2, 0.2, 0.2, 1.0),
     diffuse: vec4(1.0, 1.0, 1.0, 1.0),
     specular: vec4(1.0, 1.0, 1.0, 1.0),
@@ -56,82 +63,374 @@ function runApp_ObjectViewer(
     enabled: true,
   };
 
-  function initUnitCube() {
-    var vertices = [
-      vec4(-0.5, -0.5, 0.5, 1.0),
-      vec4(-0.5, 0.5, 0.5, 1.0),
-      vec4(0.5, 0.5, 0.5, 1.0),
-      vec4(0.5, -0.5, 0.5, 1.0),
-      vec4(-0.5, -0.5, -0.5, 1.0),
-      vec4(-0.5, 0.5, -0.5, 1.0),
-      vec4(0.5, 0.5, -0.5, 1.0),
-      vec4(0.5, -0.5, -0.5, 1.0),
-    ];
+  function createNode(transform, render, sibling, child) {
+    return {
+      transform,
+      render,
+      sibling,
+      child,
+    };
+  }
 
-    if (useIBO) {
-      positions = vertices;
-      // simple vertex normals pointing outwards from center
-      normals = [
-        vec3(-1, -1, 1),
-        vec3(-1, 1, 1),
-        vec3(1, 1, 1),
-        vec3(1, -1, 1),
-        vec3(-1, -1, -1),
-        vec3(-1, 1, -1),
-        vec3(1, 1, -1),
-        vec3(1, -1, -1),
-      ].map(function (n) {
-        return normalize(n);
-      });
-      indices = [
-        1, 0, 3, 1, 3, 2, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7, 6, 5, 1, 6, 1, 2,
-        4, 5, 6, 4, 6, 7, 5, 4, 0, 5, 0, 1,
-      ];
-      numIndices = indices.length;
-      console.log("numIndices: " + numIndices);
-      console.log(indices);
-    } else {
-      function quad(a, b, c, d) {
-        var i = [a, b, c, a, c, d];
-        // face normal from two edges
-        var t1 = subtract(vertices[b], vertices[a]);
-        var t2 = subtract(vertices[c], vertices[b]);
-        var n = normalize(cross(t1, t2));
-        for (var k = 0; k < i.length; ++k) {
-          positions.push(vertices[i[k]]);
-          normals.push(n);
+  function resolveMaterialColor(tag, defaultColor) {
+    if (tag === "wall") return materialColors.wall;
+    if (tag === "clockRimSeg" || tag === "innerRimCol")
+      return materialColors.rim;
+    if (tag === "clockFace" || tag === "clockBoard")
+      return materialColors.face;
+    if (
+      tag === "clockTick" ||
+      tag === "clockMinuteTick" ||
+      tag === "clockNumber"
+    )
+      return materialColors.ticks;
+    if (tag === "clockHandHour" || tag === "clockHandMinute")
+      return materialColors.hands;
+    if (tag === "clockHandSecond") return materialColors.secondHand;
+    return defaultColor ? mult(materialColors.default, defaultColor) : materialColors.default;
+  }
+
+  function renderNodeCube(node, hasTexture) {
+    const renderInfo = node.render || {};
+    const tag = renderInfo.tag || null;
+    const baseColor = renderInfo.color || vec4(1.0, 1.0, 1.0, 1.0);
+    const finalPartColor = resolveMaterialColor(tag, baseColor);
+    const materialDiffuse = finalPartColor;
+    const materialAmbient = scale(0.2, materialDiffuse);
+    const materialSpecular = vec4(1.0, 1.0, 1.0, 1.0);
+
+    const ambientProduct = mult(light.ambient, materialAmbient);
+    const diffuseProduct = mult(light.diffuse, materialDiffuse);
+    const specularProduct = mult(light.specular, materialSpecular);
+    gl.uniform4fv(ambientProdLoc, flatten(ambientProduct));
+    gl.uniform4fv(diffuseProdLoc, flatten(diffuseProduct));
+    gl.uniform4fv(specularProdLoc, flatten(specularProduct));
+    gl.uniform4fv(baseColorLoc, flatten(materialDiffuse));
+
+    if (textureEnabledLoc) {
+      const useWallTexture = hasTexture && tag === "wall";
+      gl.uniform1f(textureEnabledLoc, useWallTexture ? 1.0 : 0.0);
+    }
+
+    gl.drawArrays(gl.TRIANGLES, 0, numPositions);
+  }
+
+  let clockGraph = null;
+  const handAngles = { hour: 0, minute: 0, second: 0 };
+
+  function buildFallbackClockGraph() {
+    const wallCol = vec4(0.92, 0.93, 0.96, 1);
+    const faceCol = vec4(0.98, 0.985, 0.99, 1);
+    const tickCol = vec4(0.18, 0.2, 0.22, 1);
+
+    const roomTranslate = translate(0, 0, -1.4);
+    const wallTransform = mult(roomTranslate, scale(12, 7, 0.2));
+
+    const C = translate(0, 1.25, -0.9);
+    const w = 2.6,
+      h = 2.6,
+      d = 0.5,
+      faceT = 0.05;
+    const frontZ = d / 2 - faceT / 2;
+    const boardTransform = mult(
+      C,
+      mult(translate(0, 0, frontZ), scale(w * 0.92, h * 0.92, faceT))
+    );
+
+    const tickL = 0.18 * h;
+    const tickW = 0.04 * w;
+    const tickD = 0.06;
+    const tickR = Math.min(w, h) * 0.42;
+    const tickAngles = [0, 120, 240];
+    const tickTransforms = tickAngles.map((angle) => {
+      const Rz = rotateZ(angle);
+      const T = translate(0, tickR, frontZ + faceT / 2 + tickD / 2);
+      const S = scale(tickW, tickL, tickD);
+      return mult(C, mult(Rz, mult(T, S)));
+    });
+
+    const nodes = [];
+    const WALL = 0;
+    const BOARD = 1;
+    const TICK1 = 2;
+    const TICK2 = 3;
+    const TICK3 = 4;
+
+    const worldTransforms = [];
+
+    nodes[WALL] = createNode(
+      wallTransform,
+      { tag: "wall", color: wallCol },
+      null,
+      BOARD
+    );
+    worldTransforms[WALL] = wallTransform;
+
+    nodes[BOARD] = createNode(
+      boardTransform,
+      { tag: "clockBoard", color: faceCol },
+      null,
+      TICK1
+    );
+    worldTransforms[BOARD] = boardTransform;
+
+    nodes[TICK1] = createNode(
+      tickTransforms[0],
+      { tag: "clockTick", color: tickCol },
+      TICK2,
+      null
+    );
+    worldTransforms[TICK1] = tickTransforms[0];
+
+    nodes[TICK2] = createNode(
+      tickTransforms[1],
+      { tag: "clockTick", color: tickCol },
+      TICK3,
+      null
+    );
+    worldTransforms[TICK2] = tickTransforms[1];
+
+    nodes[TICK3] = createNode(
+      tickTransforms[2],
+      { tag: "clockTick", color: tickCol },
+      null,
+      null
+    );
+    worldTransforms[TICK3] = tickTransforms[2];
+
+    applyLocalTransforms(nodes, WALL, worldTransforms);
+
+    return {
+      nodes,
+      rootId: WALL,
+    };
+  }
+
+  function convertPartsToGraph(parts) {
+    if (!Array.isArray(parts) || parts.length === 0) return null;
+
+    const worldTransforms = parts.map((part) => part.transform);
+    const nodes = parts.map((part) => {
+      const renderData = {
+        tag: part.tag || null,
+        color: part.color || vec4(1.0, 1.0, 1.0, 1.0),
+      };
+      if (part.pivot)
+        renderData.pivot = [part.pivot[0], part.pivot[1], part.pivot[2]];
+      return createNode(part.transform, renderData, null, null);
+    });
+
+    const wallIndex = parts.findIndex((p) => p.tag === "wall");
+    if (wallIndex === -1) return null;
+
+    const boardIndex = parts.findIndex(
+      (p) => p.tag === "clockBoard" || p.tag === "clockFace"
+    );
+    const tickIndices = parts
+      .map((p, idx) => (p.tag === "clockTick" ? idx : -1))
+      .filter((idx) => idx !== -1);
+    const childTickIndices = tickIndices.slice(0, 3);
+
+    const used = new Set([wallIndex]);
+    if (boardIndex !== -1) used.add(boardIndex);
+    childTickIndices.forEach((idx) => used.add(idx));
+
+    if (boardIndex !== -1) {
+      nodes[wallIndex].child = boardIndex;
+      if (childTickIndices.length > 0) {
+        nodes[boardIndex].child = childTickIndices[0];
+        for (let i = 0; i < childTickIndices.length - 1; i++) {
+          nodes[childTickIndices[i]].sibling = childTickIndices[i + 1];
         }
       }
-      quad(1, 0, 3, 2);
-      quad(2, 3, 7, 6);
-      quad(3, 0, 4, 7);
-      quad(6, 5, 1, 2);
-      quad(4, 5, 6, 7);
-      quad(5, 4, 0, 1);
+    }
 
-      numPositions = positions.length;
-      console.log("numPositions: " + numPositions);
-      console.log(positions);
+    const remaining = [];
+    for (let i = 0; i < nodes.length; i++) {
+      if (!used.has(i)) remaining.push(i);
+    }
+
+    let firstChild = nodes[wallIndex].child ?? null;
+    if (firstChild === null && remaining.length > 0) {
+      firstChild = remaining.shift();
+      nodes[wallIndex].child = firstChild;
+    }
+
+    let siblingCursor = firstChild;
+    if (boardIndex !== -1 && remaining.length > 0) {
+      const nextIdx = remaining.shift();
+      nodes[boardIndex].sibling = nextIdx;
+      siblingCursor = nextIdx;
+    }
+
+    while (remaining.length > 0 && siblingCursor !== null) {
+      const nextIdx = remaining.shift();
+      nodes[siblingCursor].sibling = nextIdx;
+      siblingCursor = nextIdx;
+    }
+
+    applyLocalTransforms(nodes, wallIndex, worldTransforms);
+
+    return {
+      nodes,
+      rootId: wallIndex,
+    };
+  }
+
+  function applyLocalTransforms(nodes, rootId, worldTransforms) {
+    if (!nodes || nodes.length === 0) return;
+    const visited = new Set();
+
+    function convertPivot(renderInfo, parentInverse) {
+      if (!renderInfo || !renderInfo.pivot || !parentInverse) return;
+      const pivot = renderInfo.pivot;
+      const pivotVec = vec4(pivot[0], pivot[1], pivot[2], 1.0);
+      const pivotParent = mult(parentInverse, pivotVec);
+      renderInfo.pivot = [pivotParent[0], pivotParent[1], pivotParent[2]];
+    }
+
+    function visit(nodeId, parentId) {
+      if (nodeId === null || nodeId === undefined) return;
+      if (visited.has(nodeId)) return;
+      visited.add(nodeId);
+
+      const worldTransform = worldTransforms[nodeId] || mat4();
+      if (parentId === null) {
+        nodes[nodeId].transform = worldTransform;
+      } else {
+        const parentWorld = worldTransforms[parentId] || mat4();
+        const parentInverse = inverse(parentWorld);
+        nodes[nodeId].transform = mult(parentInverse, worldTransform);
+        convertPivot(nodes[nodeId].render, parentInverse);
+      }
+
+      let childId = nodes[nodeId].child;
+      while (childId !== null && childId !== undefined) {
+        visit(childId, nodeId);
+        childId = nodes[childId].sibling;
+      }
+    }
+
+    visit(rootId, null);
+  }
+
+  function buildSceneGraph() {
+    if (typeof window.createClockModel === "function") {
+      const result = window.createClockModel({ createNode });
+      if (result && Array.isArray(result.nodes) && result.nodes.length > 0)
+        return result;
+      if (Array.isArray(result) && result.length > 0) {
+        const graph = convertPartsToGraph(result);
+        if (graph) return graph;
+      }
+    }
+    return buildFallbackClockGraph();
+  }
+
+  function traverseNodeGraph(nodes, nodeId, parentMatrix, viewMatrix) {
+    let currentId = nodeId;
+    while (currentId !== null && currentId !== undefined) {
+      const node = nodes[currentId];
+      if (!node) break;
+
+      let localMatrix = node.transform || mat4();
+      const renderInfo = node.render || {};
+      const tag = renderInfo.tag || null;
+
+      if (renderInfo.pivot && tag) {
+        let angle = null;
+        if (tag === "clockHandHour") angle = handAngles.hour;
+        else if (tag === "clockHandMinute") angle = handAngles.minute;
+        else if (tag === "clockHandSecond") angle = handAngles.second;
+        if (angle !== null) {
+          const [px, py, pz] = renderInfo.pivot;
+          const Tp = translate(px, py, pz);
+          const Tm = translate(-px, -py, -pz);
+          localMatrix = mult(Tp, mult(rotateZ(angle), mult(Tm, node.transform)));
+        }
+      }
+
+      const worldMatrix = mult(parentMatrix, localMatrix);
+      const modelView = mult(viewMatrix, worldMatrix);
+      gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelView));
+      const nMat = normalMatrix(modelView, true);
+      gl.uniformMatrix3fv(normalMatrixLoc, false, flatten(nMat));
+
+      renderNodeCube(node, textureEnabled > 0.0);
+
+      if (node.child !== null && node.child !== undefined) {
+        traverseNodeGraph(nodes, node.child, worldMatrix, viewMatrix);
+      }
+
+      currentId = node.sibling;
     }
   }
 
-  function createCheckerboard(size) {
-    var texSize = size || 128;
-    var image1 = new Array();
-    for (var i = 0; i < texSize; i++) image1[i] = new Array();
-    for (var i = 0; i < texSize; i++)
-      for (var j = 0; j < texSize; j++) image1[i][j] = new Float32Array(4);
-    for (var i = 0; i < texSize; i++)
-      for (var j = 0; j < texSize; j++) {
-        var c = ((i & 0x8) == 0) ^ ((j & 0x8) == 0);
-        image1[i][j] = [c, c, c, 1];
+  function renderSceneGraph(viewMatrix, rootMatrix) {
+    if (!clockGraph || !clockGraph.nodes || clockGraph.nodes.length === 0)
+      return;
+    const rootId =
+      clockGraph.rootId !== undefined && clockGraph.rootId !== null
+        ? clockGraph.rootId
+        : 0;
+    traverseNodeGraph(clockGraph.nodes, rootId, rootMatrix || mat4(), viewMatrix);
+  }
+
+  function initUnitCube() {
+    const v = [
+      vec4(-0.5, -0.5, 0.5, 1),
+      vec4(-0.5, 0.5, 0.5, 1),
+      vec4(0.5, 0.5, 0.5, 1),
+      vec4(0.5, -0.5, 0.5, 1),
+      vec4(-0.5, -0.5, -0.5, 1),
+      vec4(-0.5, 0.5, -0.5, 1),
+      vec4(0.5, 0.5, -0.5, 1),
+      vec4(0.5, -0.5, -0.5, 1),
+    ];
+    const uv = [vec2(0, 0), vec2(0, 1), vec2(1, 1), vec2(1, 0)];
+
+    function quad(a, b, c, d) {
+      const idx = [a, b, c, a, c, d];
+      const t1 = subtract(v[b], v[a]);
+      const t2 = subtract(v[c], v[b]);
+      const n = normalize(cross(t1, t2));
+      const uvs = [uv[0], uv[1], uv[2], uv[0], uv[2], uv[3]];
+      for (let k = 0; k < idx.length; k++) {
+        positions.push(v[idx[k]]);
+        normals.push(n);
+        texCoords.push(uvs[k]);
       }
-    var image2 = new Uint8Array(4 * texSize * texSize);
-    for (var i = 0; i < texSize; i++)
-      for (var j = 0; j < texSize; j++)
-        for (var k = 0; k < 4; k++)
-          image2[4 * texSize * i + 4 * j + k] = 255 * image1[i][j][k];
-    return { data: image2, texSize };
+    }
+    positions = [];
+    normals = [];
+    texCoords = [];
+    quad(1, 0, 3, 2);
+    quad(2, 3, 7, 6);
+    quad(3, 0, 4, 7);
+    quad(6, 5, 1, 2);
+    quad(4, 5, 6, 7);
+    quad(5, 4, 0, 1);
+    numPositions = positions.length;
+  }
+
+  function createCheckerboard(size) {
+    const texSize = size || 64;
+    const numRows = 8,
+      numCols = 8;
+    const myTexels = new Uint8Array(4 * texSize * texSize);
+    for (let i = 0; i < texSize; ++i) {
+      for (let j = 0; j < texSize; ++j) {
+        const patchY = Math.floor(i / (texSize / numRows));
+        const patchX = Math.floor(j / (texSize / numCols));
+        const c = patchX % 2 !== patchY % 2 ? 255 : 0;
+        const k = 4 * (i * texSize + j);
+        myTexels[k] = c;
+        myTexels[k + 1] = c;
+        myTexels[k + 2] = c;
+        myTexels[k + 3] = 255;
+      }
+    }
+    return { data: myTexels, texSize };
   }
 
   function createGLTextureFromImage(img) {
@@ -168,12 +467,8 @@ function runApp_ObjectViewer(
       cb.data
     );
     gl.generateMipmap(gl.TEXTURE_2D);
-    gl.texParameteri(
-      gl.TEXTURE_2D,
-      gl.TEXTURE_MIN_FILTER,
-      gl.LINEAR_MIPMAP_LINEAR
-    );
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.bindTexture(gl.TEXTURE_2D, null);
     return tex;
   }
@@ -190,64 +485,50 @@ function runApp_ObjectViewer(
       textureEnabled = 1.0;
       return;
     }
-    // else "custom" is handled via file input
   }
 
-  function init() {
+  function setupGL() {
     canvas = document.getElementById("gl-canvas");
     gl = canvas.getContext("webgl2");
     if (!gl) return alert("WebGL 2.0 isn't available");
 
     initUnitCube();
 
-    // Always load chair model
-    objectParts = window.createChairModel();
-
     gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clearColor(0.9, 0.9, 0.95, 1.0);
+    gl.clearColor(0.93, 0.94, 0.98, 1.0);
     gl.enable(gl.DEPTH_TEST);
-    // Choose shader pair by lighting mode
-    if (currentLightingMode === "vertex") {
-      program = initShaders(
-        gl,
-        "viewer-vertex-shader-vertex",
-        "viewer-fragment-shader-vertex"
-      );
-    } else {
-      program = initShaders(
-        gl,
-        "viewer-vertex-shader",
-        "viewer-fragment-shader"
-      );
-    }
+
+    program = initShaders(
+      gl,
+      currentLightingMode === "vertex"
+        ? "viewer-vertex-shader-vertex"
+        : "viewer-vertex-shader",
+      currentLightingMode === "vertex"
+        ? "viewer-fragment-shader-vertex"
+        : "viewer-fragment-shader"
+    );
     gl.useProgram(program);
 
-    // VBO setup
-    var vBuffer = gl.createBuffer();
+    const vBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, vBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(positions), gl.STATIC_DRAW);
-    var positionLoc = gl.getAttribLocation(program, "aPosition");
+    const positionLoc = gl.getAttribLocation(program, "aPosition");
     gl.vertexAttribPointer(positionLoc, 4, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(positionLoc);
 
-    // Normal buffer
-    var nBuffer = gl.createBuffer();
+    const nBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, nBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, flatten(normals), gl.STATIC_DRAW);
-    var normalLoc = gl.getAttribLocation(program, "aNormal");
+    const normalLoc = gl.getAttribLocation(program, "aNormal");
     gl.vertexAttribPointer(normalLoc, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(normalLoc);
 
-    // IBO setup
-    if (useIBO) {
-      var iBuffer = gl.createBuffer();
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, iBuffer);
-      gl.bufferData(
-        gl.ELEMENT_ARRAY_BUFFER,
-        new Uint16Array(indices),
-        gl.STATIC_DRAW
-      );
-    }
+    const tBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, flatten(texCoords), gl.STATIC_DRAW);
+    const texCoordLoc = gl.getAttribLocation(program, "aTexCoord");
+    gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(texCoordLoc);
 
     modelViewMatrixLoc = gl.getUniformLocation(program, "modelViewMatrix");
     projectionMatrixLoc = gl.getUniformLocation(program, "projectionMatrix");
@@ -263,15 +544,15 @@ function runApp_ObjectViewer(
     specularIntensityLoc = gl.getUniformLocation(program, "uSpecularIntensity");
     lightingEnabledLoc = gl.getUniformLocation(program, "uLightingEnabled");
     baseColorLoc = gl.getUniformLocation(program, "uBaseColor");
-
-    // Texture uniforms
     textureSamplerLoc = gl.getUniformLocation(program, "uTextureMap");
     textureEnabledLoc = gl.getUniformLocation(program, "uTextureEnabled");
-    if (textureSamplerLoc) {
-      gl.uniform1i(textureSamplerLoc, 0); // use texture unit 0
-    }
 
-    // Hook UI
+    if (textureSamplerLoc) {
+      gl.uniform1i(textureSamplerLoc, 0);
+    }
+  }
+
+  function hookUI() {
     canvas.onmousedown = (e) => {
       isDragging = true;
       lastMouseX = e.clientX;
@@ -282,7 +563,7 @@ function runApp_ObjectViewer(
       if (isDragging) {
         rotation.y += (e.clientX - lastMouseX) * 0.5;
         rotation.x += (e.clientY - lastMouseY) * 0.5;
-        rotation.x = Math.max(-90, Math.min(90, rotation.x));
+        rotation.x = Math.max(-89, Math.min(89, rotation.x));
         lastMouseX = e.clientX;
         lastMouseY = e.clientY;
       }
@@ -292,24 +573,32 @@ function runApp_ObjectViewer(
       cameraDistance += e.deltaY * 0.02;
       cameraDistance = Math.max(4.0, Math.min(25.0, cameraDistance));
     };
-    document.getElementById("viewer-scale").oninput = (e) =>
-      (scaleValue = parseFloat(e.target.value));
-    document.getElementById("viewer-translateX").oninput = (e) =>
-      (translation.x = parseFloat(e.target.value));
-    document.getElementById("viewer-translateY").oninput = (e) =>
-      (translation.y = parseFloat(e.target.value));
 
-    document.getElementById("btn-rotate-x").onclick = () => {
-      objectRotationMatrix = mult(objectRotationMatrix, rotateX(90));
+    document.getElementById("btnPlay").onclick = () => (playing = true);
+    document.getElementById("btnPause").onclick = () => (playing = false);
+    document.getElementById("btnStop").onclick = () => {
+      playing = false;
+      t_clock = 0;
+      t_model = 0;
     };
-    document.getElementById("btn-rotate-y").onclick = () => {
-      objectRotationMatrix = mult(objectRotationMatrix, rotateY(90));
+    document.getElementById("btnReset").onclick = () => {
+      t_clock = 0;
+      t_model = 0;
     };
-    document.getElementById("btn-rotate-z").onclick = () => {
-      objectRotationMatrix = mult(objectRotationMatrix, rotateZ(90));
-    };
+    document.getElementById("speed").oninput = (e) =>
+      (speed = parseFloat(e.target.value));
+    document.getElementById("acRotate").onchange = (e) =>
+      (acRotate = !!e.target.checked);
+    document.getElementById("acRotateSpeed").oninput = (e) =>
+      (acRotateSpeed = parseFloat(e.target.value));
 
-    // Hook UI controls for lighting
+    const rt = document.getElementById("clkRealTime");
+    if (rt) {
+      const set = () => (clkRealTime = !!rt.checked);
+      rt.onchange = set;
+      set();
+    }
+
     function hexToVec4(hex) {
       const h = hex.replace("#", "");
       const r = parseInt(h.substring(0, 2), 16) / 255;
@@ -337,12 +626,102 @@ function runApp_ObjectViewer(
       "specularIntensityValue"
     );
     const lightEnabledInput = document.getElementById("lightEnabled");
-    const objectColorInput = document.getElementById("objectColor");
     const lightX = document.getElementById("lightX");
     const lightY = document.getElementById("lightY");
     const lightZ = document.getElementById("lightZ");
 
-    // Texture UI
+    if (ambientInput)
+      ambientInput.oninput = (e) => (light.ambient = hexToVec4(e.target.value));
+    if (diffuseInput)
+      diffuseInput.oninput = (e) => (light.diffuse = hexToVec4(e.target.value));
+    if (specularInput)
+      specularInput.oninput = (e) =>
+        (light.specular = hexToVec4(e.target.value));
+    if (shininessInput)
+      shininessInput.oninput = (e) =>
+        (light.shininess = parseFloat(e.target.value));
+
+    if (lightIntensityInput) {
+      const update = (e) => {
+        light.intensity = parseFloat(lightIntensityInput.value);
+        if (lightIntensityValue)
+          lightIntensityValue.textContent = light.intensity.toFixed(2);
+      };
+      lightIntensityInput.oninput = update;
+      update();
+    }
+    if (ambientIntensityInput) {
+      const update = () => {
+        light.ambientIntensity = parseFloat(ambientIntensityInput.value);
+        if (ambientIntensityValue)
+          ambientIntensityValue.textContent = light.ambientIntensity.toFixed(2);
+      };
+      ambientIntensityInput.oninput = update;
+      update();
+    }
+    if (diffuseIntensityInput) {
+      const update = () => {
+        light.diffuseIntensity = parseFloat(diffuseIntensityInput.value);
+        if (diffuseIntensityValue)
+          diffuseIntensityValue.textContent = light.diffuseIntensity.toFixed(2);
+      };
+      diffuseIntensityInput.oninput = update;
+      update();
+    }
+    if (specularIntensityInput) {
+      const update = () => {
+        light.specularIntensity = parseFloat(specularIntensityInput.value);
+        if (specularIntensityValue)
+          specularIntensityValue.textContent =
+            light.specularIntensity.toFixed(2);
+      };
+      specularIntensityInput.oninput = update;
+      update();
+    }
+
+    if (lightEnabledInput) {
+      const update = () => (light.enabled = !!lightEnabledInput.checked);
+      lightEnabledInput.onchange = update;
+      update();
+    }
+    function updateLightPos() {
+      light.position = vec4(
+        parseFloat(lightX.value),
+        parseFloat(lightY.value),
+        parseFloat(lightZ.value),
+        1.0
+      );
+    }
+    if (lightX && lightY && lightZ) {
+      lightX.oninput = updateLightPos;
+      lightY.oninput = updateLightPos;
+      lightZ.oninput = updateLightPos;
+      updateLightPos();
+    }
+
+    const colorInputs = {
+      wall: document.getElementById("colorWall"),
+      rim: document.getElementById("colorRim"),
+      face: document.getElementById("colorFace"),
+      ticks: document.getElementById("colorTicks"),
+      hands: document.getElementById("colorHands"),
+      secondHand: document.getElementById("colorSecondHand"),
+      default: document.getElementById("colorDefault"),
+    };
+
+    for (const key in colorInputs) {
+      const input = colorInputs[key];
+      if (input) {
+        const update = () => {
+          materialColors[key] = hexToVec4(input.value);
+        };
+        input.oninput = update;
+        update();
+      } else {
+        materialColors[key] = vec4(1.0, 1.0, 1.0, 1.0);
+      }
+    }
+
     const textureEnabledInput = document.getElementById("textureEnabled");
     const textureSelectInput = document.getElementById("textureSelect");
     const textureFileRow = document.getElementById("textureFileRow");
@@ -406,7 +785,6 @@ function runApp_ObjectViewer(
         }
         applyTextureSelection();
       };
-      // default: none
       textureSelect = textureSelectInput.value || "none";
       if (textureFileRow)
         textureFileRow.style.display =
@@ -423,22 +801,13 @@ function runApp_ObjectViewer(
         if (textureFileInput) textureFileInput.click();
       });
       ["dragenter", "dragover"].forEach((evt) => {
-        textureDropzone.addEventListener(evt, function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          textureDropzone.classList.add("bg-gray-50");
-        });
+        textureDropzone.addEventListener(evt, (e) => e.preventDefault());
       });
       ["dragleave", "drop"].forEach((evt) => {
-        textureDropzone.addEventListener(evt, function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          textureDropzone.classList.remove("bg-gray-50");
-        });
+        textureDropzone.addEventListener(evt, (e) => e.preventDefault());
       });
       textureDropzone.addEventListener("drop", function (e) {
-        const dt = e.dataTransfer;
-        const file = dt && dt.files && dt.files[0];
+        const file = e.dataTransfer && e.dataTransfer.files[0];
         if (file) handleFile(file);
       });
     }
@@ -451,106 +820,57 @@ function runApp_ObjectViewer(
         if (textureFileInput) textureFileInput.value = "";
       };
     }
-
-    if (ambientInput)
-      ambientInput.oninput = (e) => {
-        light.ambient = hexToVec4(e.target.value);
-      };
-    if (diffuseInput)
-      diffuseInput.oninput = (e) => {
-        light.diffuse = hexToVec4(e.target.value);
-      };
-    if (specularInput)
-      specularInput.oninput = (e) => {
-        light.specular = hexToVec4(e.target.value);
-      };
-    if (shininessInput)
-      shininessInput.oninput = (e) => {
-        light.shininess = parseFloat(e.target.value);
-      };
-    if (lightIntensityInput) {
-      const updateIntensity = (e) => {
-        light.intensity = parseFloat(lightIntensityInput.value);
-        if (lightIntensityValue) {
-          lightIntensityValue.textContent = light.intensity.toFixed(2);
-        }
-      };
-      lightIntensityInput.oninput = updateIntensity;
-      updateIntensity();
-    }
-    if (ambientIntensityInput) {
-      const updateAmb = () => {
-        light.ambientIntensity = parseFloat(ambientIntensityInput.value);
-        if (ambientIntensityValue)
-          ambientIntensityValue.textContent = light.ambientIntensity.toFixed(2);
-      };
-      ambientIntensityInput.oninput = updateAmb;
-      updateAmb();
-    }
-    if (diffuseIntensityInput) {
-      const updateDif = () => {
-        light.diffuseIntensity = parseFloat(diffuseIntensityInput.value);
-        if (diffuseIntensityValue)
-          diffuseIntensityValue.textContent = light.diffuseIntensity.toFixed(2);
-      };
-      diffuseIntensityInput.oninput = updateDif;
-      updateDif();
-    }
-    if (specularIntensityInput) {
-      const updateSpec = () => {
-        light.specularIntensity = parseFloat(specularIntensityInput.value);
-        if (specularIntensityValue)
-          specularIntensityValue.textContent =
-            light.specularIntensity.toFixed(2);
-      };
-      specularIntensityInput.oninput = updateSpec;
-      updateSpec();
-    }
-    if (objectColorInput) {
-      const updateTint = () => {
-        materialTint = hexToVec4(objectColorInput.value);
-      };
-      objectColorInput.oninput = updateTint;
-      updateTint();
-    }
-    if (lightEnabledInput) {
-      const updateEnabled = () => {
-        light.enabled = !!lightEnabledInput.checked;
-      };
-      lightEnabledInput.onchange = updateEnabled;
-      updateEnabled();
-    }
-    function updateLightPos() {
-      light.position = vec4(
-        parseFloat(lightX.value),
-        parseFloat(lightY.value),
-        parseFloat(lightZ.value),
-        1.0
-      );
-    }
-    if (lightX && lightY && lightZ) {
-      lightX.oninput = updateLightPos;
-      lightY.oninput = updateLightPos;
-      lightZ.oninput = updateLightPos;
-      updateLightPos();
-    }
-
-    render();
   }
 
-  function render() {
+  function setCameraPosition(preset) {
+    switch (preset) {
+      case "front":
+        rotation.x = 0;
+        rotation.y = 0;
+        cameraDistance = 9.0;
+        break;
+      case "side":
+        rotation.x = 0;
+        rotation.y = 90;
+        cameraDistance = 9.0;
+        break;
+      case "top":
+        rotation.x = -90;
+        rotation.y = 0;
+        cameraDistance = 9.0;
+        break;
+      case "isometric":
+        rotation.x = -30;
+        rotation.y = 45;
+        cameraDistance = 9.0;
+        break;
+      default:
+        rotation.x = -8;
+        rotation.y = 28;
+        cameraDistance = 9.0;
+    }
+  }
+
+  function stop() {
+    if (animationId !== -1) {
+      cancelAnimationFrame(animationId);
+      animationId = -1;
+    }
+  }
+
+  function render(now) {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+    now = (now || 0) * 0.001;
+    const deltaTime = now - lastTime;
+    lastTime = now;
+
+    const aspect = canvas.width / canvas.height;
+
     if (currentProjectionType === "perspective") {
-      projectionMatrix = perspective(
-        30.0,
-        canvas.width / canvas.height,
-        0.2,
-        100.0
-      );
+      projectionMatrix = perspective(30.0, aspect, 0.2, 100.0);
     } else {
-      const size = cameraDistance * 0.5;
-      const aspect = canvas.width / canvas.height;
+      const size = cameraDistance * 0.4;
       projectionMatrix = ortho(
         -size * aspect,
         size * aspect,
@@ -560,8 +880,8 @@ function runApp_ObjectViewer(
         100.0
       );
     }
-
     gl.uniformMatrix4fv(projectionMatrixLoc, false, flatten(projectionMatrix));
+
     const eye = vec3(
       cameraDistance *
         Math.sin(radians(rotation.y)) *
@@ -572,12 +892,27 @@ function runApp_ObjectViewer(
         Math.cos(radians(rotation.x))
     );
     const V = lookAt(eye, vec3(0, 0.5, 0), vec3(0, 1, 0));
-    const T = translate(translation.x, translation.y, 0);
-    const S = scale(scaleValue, scaleValue, scaleValue);
-    const R = objectRotationMatrix;
-    const objectTransform = mult(T, mult(R, S));
 
-    // Bind texture if enabled
+    if (playing) {
+      t_clock += deltaTime * speed;
+    }
+
+    let spinAngle = 0.0;
+    if (acRotate) {
+      t_model += deltaTime;
+      spinAngle = t_model * acRotateSpeed;
+    } else {
+      t_model = 0.0;
+    }
+
+    gl.uniform4fv(lightPosLoc, light.position);
+    gl.uniform1f(shininessLoc, light.shininess);
+    gl.uniform1f(lightIntensityLoc, light.intensity);
+    gl.uniform1f(ambientIntensityLoc, light.ambientIntensity);
+    gl.uniform1f(diffuseIntensityLoc, light.diffuseIntensity);
+    gl.uniform1f(specularIntensityLoc, light.specularIntensity);
+    gl.uniform1f(lightingEnabledLoc, light.enabled ? 1.0 : 0.0);
+
     if (textureEnabledLoc) {
       gl.uniform1f(textureEnabledLoc, textureEnabled);
     }
@@ -587,116 +922,45 @@ function runApp_ObjectViewer(
       gl.uniform1i(textureSamplerLoc, 0);
     }
 
-    for (let i = 0; i < objectParts.length; i++) {
-      let M = mult(objectTransform, objectParts[i].transform);
-      modelViewMatrix = mult(V, M);
-      gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
-      // normal matrix per part
-      var nMat = normalMatrix(modelViewMatrix, true);
-      gl.uniformMatrix3fv(normalMatrixLoc, false, flatten(nMat));
+    const Rspin = rotateY(spinAngle);
 
-      // Build material based on part color
-      // Apply user tint to the base part color
-      var materialDiffuse = mult(materialTint, objectParts[i].color);
-      var materialAmbient = scale(0.2, materialDiffuse); // simple choice
-      var materialSpecular = vec4(1.0, 1.0, 1.0, 1.0);
-
-      // Set light uniforms
-      gl.uniform4fv(lightPosLoc, light.position);
-      gl.uniform1f(shininessLoc, light.shininess);
-      if (lightIntensityLoc) gl.uniform1f(lightIntensityLoc, light.intensity);
-      if (ambientIntensityLoc)
-        gl.uniform1f(ambientIntensityLoc, light.ambientIntensity);
-      if (diffuseIntensityLoc)
-        gl.uniform1f(diffuseIntensityLoc, light.diffuseIntensity);
-      if (specularIntensityLoc)
-        gl.uniform1f(specularIntensityLoc, light.specularIntensity);
-      if (lightingEnabledLoc)
-        gl.uniform1f(lightingEnabledLoc, light.enabled ? 1.0 : 0.0);
-
-      var ambientProduct = mult(light.ambient, materialAmbient);
-      var diffuseProduct = mult(light.diffuse, materialDiffuse);
-      var specularProduct = mult(light.specular, materialSpecular);
-      gl.uniform4fv(ambientProdLoc, flatten(ambientProduct));
-      gl.uniform4fv(diffuseProdLoc, flatten(diffuseProduct));
-      gl.uniform4fv(specularProdLoc, flatten(specularProduct));
-      if (baseColorLoc) gl.uniform4fv(baseColorLoc, flatten(materialDiffuse));
-
-      // IBO rendering call
-      if (useIBO) {
-        gl.drawElements(gl.TRIANGLES, numIndices, gl.UNSIGNED_SHORT, 0);
-      }
-      // VBO only rendering call
-      else {
-        gl.drawArrays(gl.TRIANGLES, 0, numPositions);
-      }
+    let hours, minutes, seconds;
+    if (clkRealTime) {
+      const now = new Date();
+      hours = now.getHours() % 12;
+      minutes = now.getMinutes();
+      seconds = now.getSeconds() + now.getMilliseconds() / 1000;
+    } else {
+      const curr = simStartSec + t_clock;
+      hours = Math.floor(curr / 3600) % 12;
+      minutes = Math.floor(curr / 60) % 60;
+      seconds = curr % 60;
     }
+
+    const secDeg = -6 * (seconds % 60);
+    const minDeg = -6 * (minutes + seconds / 60);
+    const hourDeg = -30 * (hours + minutes / 60 + seconds / 3600);
+
+    handAngles.hour = hourDeg;
+    handAngles.minute = minDeg;
+    handAngles.second = secDeg;
+
+    if (!clockGraph) clockGraph = buildSceneGraph();
+    renderSceneGraph(V, Rspin);
     animationId = requestAnimationFrame(render);
   }
 
-  function setCameraPosition(preset) {
-    switch (preset) {
-      case "front":
-        rotation.x = 0;
-        rotation.y = 0;
-        cameraDistance = 10.0;
-        break;
-      case "side":
-        rotation.x = 0;
-        rotation.y = 90;
-        cameraDistance = 10.0;
-        break;
-      case "top":
-        rotation.x = -90;
-        rotation.y = 0;
-        cameraDistance = 10.0;
-        break;
-      case "isometric":
-        rotation.x = -30;
-        rotation.y = 45;
-        cameraDistance = 10.0;
-        break;
-      default:
-        rotation.x = -25;
-        rotation.y = 35;
-        cameraDistance = 10.0;
-    }
-  }
+  setupGL();
+  hookUI();
+  applyTextureSelection();
+  clockGraph = buildSceneGraph();
+  render();
 
-  // Reset helpers for UI toolbar
-  function resetTransform() {
-    scaleValue = 0.7;
-    translation = { x: 0, y: 0 };
-    objectRotationMatrix = mat4();
-  }
-
-  function resetLight() {
-    light.position = vec4(2.0, 3.0, 4.0, 1.0);
-    light.shininess = 50.0;
-    light.intensity = 1.0;
-    light.ambientIntensity = 1.0;
-    light.diffuseIntensity = 1.0;
-    light.specularIntensity = 1.0;
-    light.enabled = true;
-    // Keep colors/tint as-is; user may have changed them intentionally
-  }
-
-  function resetView() {
-    // Reset camera orientation and distance
-    rotation = { x: -25, y: 35 };
-    cameraDistance = 10.0;
-    resetTransform();
-    resetLight();
-  }
-
-  init();
   return {
-    animationId: animationId,
+    stop: stop,
     setCameraPosition: setCameraPosition,
-    resetTransform: resetTransform,
-    resetLight: resetLight,
-    resetView: resetView,
   };
 }
 
-window.runApp_ObjectViewer = runApp_ObjectViewer;
+window.runApp_ClockViewer = runApp_ClockViewer;
+
