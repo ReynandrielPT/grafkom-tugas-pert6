@@ -272,8 +272,6 @@
         <div class="h-full flex flex-col">
           <h2 style="text-align: center; margin-bottom: 1rem">Video</h2>
           <video
-            src="./assets/clock.mp4"
-            alt="Clock Video"
             style="
               flex: 1;
               width: 100%;
@@ -287,7 +285,10 @@
             autoplay
             loop
             muted
-          ></video>
+          >
+            <source src="./assets/clock.mp4" type="video/mp4" />
+            Your browser does not support the video tag.
+          </video>
         </div>
 
         <div class="h-full flex flex-col">
