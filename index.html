@@ -248,7 +248,7 @@
         <canvas id="gl-canvas" width="800" height="600"></canvas>
       </div>
 
-      <div class="flex max-h-[30rem] gap-10">
+      <div class="flex max-h-[25rem] gap-10">
         <div class="h-full flex flex-col">
           <h2 style="text-align: center; margin-bottom: 1rem">
             Object References
@@ -269,9 +269,11 @@
           />
         </div>
 
+        <link rel="stylesheet" href="style.css" />
         <div class="h-full flex flex-col">
           <h2 style="text-align: center; margin-bottom: 1rem">Video</h2>
           <video
+            id="clock-video"
             style="
               flex: 1;
               width: 100%;
@@ -282,13 +284,23 @@
               box-shadow: var(--shadow);
               background: white;
             "
-            autoplay
             loop
             muted
           >
             <source src="./assets/clock.mp4" type="video/mp4" />
             Your browser does not support the video tag.
           </video>
+          <button id="play-video-btn">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </button>
         </div>
 
         <div class="h-full flex flex-col">
